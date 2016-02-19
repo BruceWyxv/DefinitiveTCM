@@ -79,106 +79,107 @@
 % Date Created: 09/30/2015
 
 function finalValues = FitTCMData(substrate, film, filmThickness, directory, scanFileBase, varargin)
-    database = Database();
-    utilities = Utilities();
+  % Get the databases and utilities
+  database = Database();
+  utilities = Utilities();
 
-    % Define the input arguments
-    parser = inputParser;
-    parser.addRequired('substrate', @ischar);
-    parser.addRequired('film', @ischar);
-    parser.addRequired('filmThickness', @isnumeric);
-    parser.addRequired('directory', @ischar);
-    parser.addRequired('scanFileBase', @ischar);
-    parser.addParamValue('anisotropicFileBase', '', @ischar);
-    parser.addParamValue('dataMode', 1, @(x) x == 1 || x == 2);
-    parser.addParamValue('magnification', 50, @isnumeric);
-    parser.addParamValue('parameterMode', 1, @(x) x >= 1 && x <= 3);
-    
-    % Check the input arguments
-    parser.KeepUnmatched = true;
-    try
-        parser.parse(substrate, film, filmThickness, directory, scanFileBase, varargin{:});
-    catch me
-        errorString = ['Error when trying to parse input arguments:   '...
-                       me.message];
-        error(errorString);
+  % Define the input arguments
+  parser = inputParser;
+  parser.addRequired('substrate', @ischar);
+  parser.addRequired('film', @ischar);
+  parser.addRequired('filmThickness', @isnumeric);
+  parser.addRequired('directory', @ischar);
+  parser.addRequired('scanFileBase', @ischar);
+  parser.addParameter('anisotropicFileBase', '', @ischar);
+  parser.addParameter('dataMode', 1, @(x) x == 1 || x == 2);
+  parser.addParameter('magnification', 50, @isnumeric);
+  parser.addParameter('parameterMode', 1, @(x) x >= 1 && x <= 3);
+
+  % Check the input arguments
+  parser.KeepUnmatched = true;
+  try
+    parser.parse(substrate, film, filmThickness, directory, scanFileBase, varargin{:});
+  catch me
+    errorString = ['Error when trying to parse input arguments:   '...
+      me.message];
+    error(errorString);
+  end
+  if ~isempty(fieldnames(parser.Unmatched))
+    warning('MATLAB:unknownArgument', 'Some arguments were not recognized:');
+    disp(parser.Unmatched);
+  end
+
+  % Assign additional values
+  anisotropicFileBase = parser.Results.anisotropicFileBase;
+  runAnisotropicAnalysis = false;
+  dataMode = parser.Results.dataMode;
+  numberOfFrequencies = 0;
+  magnification = parser.Results.magnification;
+  parameterMode = parser.Results.parameterMode;
+
+  % Ensure the directory & file(s) exist
+  if ~exist(directory, 'dir');
+    errorString = ['Specified data directory ''' directory ''' does not exist!'];
+    error(errorString);
+  else
+    testFile = utilities.GetFileName(directory, scanFileBase, 1);
+    if ~exist(testFile, 'file')
+      errorString = ['Specified scan data file ''' testFile ''' does not exist!'];
+      error(errorString);
     end
-    if ~isempty(fieldnames(parser.Unmatched))
-        warning('MATLAB:unknownArgument', 'Some arguments were not recognized:');
-        disp(parser.Unmatched);
-    end
-    
-    % Assign additional values
-    anisotropicFileBase = parser.Results.anisotropicFileBase;
-    runAnisotropicAnalysis = false;
-    dataMode = parser.Results.dataMode;
-    numberOfFrequencies = 0;
-    magnification = parser.Results.magnification;
-    parameterMode = parser.Results.parameterMode;
-    
-    % Ensure the directory & file(s) exist
-    if ~exist(directory, 'dir');
-        errorString = ['Specified data directory ''' directory ''' does not exist!'];
-        error(errorString);
-    else
-        testFile = utilities.GetFileName(directory, scanFileBase, 1);
+    testVar = load(testFile, 'frequencies');
+    numberOfFrequencies = length(testVar.frequencies);
+    if ~any(strcmp(parser.UsingDefaults, 'anisotropicFileBase'))
+      if isempty(anisotropicFileBase)
+        warning('MATLAB:emptyArgument', 'No file name provided for the anisotropic analysis. Anisotropic analysis will not be performed. Consider removing the key and parameter value from the function call');
+      elseif parameterMode == 3
+        error('Cannot perform anisotropic analysis when fitting for the film parameters.\nRemove either the AnisotropicFileBase" option or change the value for the "ParameterMode" option to a suitable value.');
+      else
+        testFile = utilities.GetFileName(directory, anisotropicFileBase, 1);
         if ~exist(testFile, 'file')
-            errorString = ['Specified scan data file ''' testFile ''' does not exist!'];
-            error(errorString);
+          errorString = ['Specified scan data file ''' testFile ''' does not exist!'];
+          error(errorString);
         end
-        testVar = load(testFile, 'frequencies');
-        numberOfFrequencies = length(testVar.frequencies);
-        if ~any(strcmp(parser.UsingDefaults, 'anisotropicFileBase'))
-            if isempty(anisotropicFileBase)
-                warning('MATLAB:emptyArgument', 'No file name provided for the anisotropic analysis. Anisotropic analysis will not be performed. Consider removing the key and parameter value from the function call');
-            elseif parameterMode == 3
-                    error('Cannot perform anisotropic analysis when fitting for the film parameters.\nRemove either the AnisotropicFileBase" option or change the value for the "ParameterMode" option to a suitable value.');
-            else
-                testFile = utilities.GetFileName(directory, anisotropicFileBase, 1);
-                if ~exist(testFile, 'file')
-                    errorString = ['Specified scan data file ''' testFile ''' does not exist!'];
-                    error(errorString);
-                end
-                disp('Running anisotropic analysis with data for the second direction extracted from the file: ', testFile);
-                runAnisotropicAnalysis = true;
-            end
-        end
+        disp('Running anisotropic analysis with data for the second direction extracted from the file: ', testFile);
+        runAnisotropicAnalysis = true;
+      end
     end
-    
-    % Get the initial properties
-    substrateProperties = database.GetThermalProperties(substrate);
-    filmProperties = database.GetThermalProperties(film);
-    
-    % Seed the initial values
-    switch parameterMode
-        case 1
-            initialValues.ks = substrateProperties.k;
-            initialValues.ds = substrateProperties.d;
-        case 2
-            initialValues.ks = substrateProperties.k;
-            initialValues.ds = substrateProperties.d;
-        case 3
-            initialValues.kf = filmProperties.k;
-            initialValues.df = filmProperties.d;
-    end
-    if runAnisotropicAnalysis == true
-        initialValues.ks2D = initialValues.ks;
-        initialValues.ds2D = initialValues.ds;
-    end
-    initialValues.spot = database.GetSpotSizeFromMagnification(magnification);
-    if parameterMode == 1 || parameterMode == 3
-        initialValues.rth = 1E-8;
-    else
-        % parameterMode == 2
-        numberOfFrequencies = numberOfFrequencies - 1;
-    end
-    
-    % Get the data
-    data.x = LoadData(directory, scanFileBase, numberOfFrequencies);
-    if runAnisotropicAnalysis
-        data.y = LoadData(directory, anisotropicFileBase, numberOfFrequencies);
-    end
-    
-    % Return the final values
-    finalValues = initialValues;
+  end
+
+  % Get the initial properties
+  substrateProperties = database.GetThermalProperties(substrate);
+  filmProperties = database.GetThermalProperties(film);
+
+  % Seed the initial values
+  switch parameterMode
+    case 1
+      initialValues.ks = substrateProperties.k;
+      initialValues.ds = substrateProperties.d;
+    case 2
+      initialValues.ks = substrateProperties.k;
+      initialValues.ds = substrateProperties.d;
+    case 3
+      initialValues.kf = filmProperties.k;
+      initialValues.df = filmProperties.d;
+  end
+  if runAnisotropicAnalysis == true
+    initialValues.ks2D = initialValues.ks;
+    initialValues.ds2D = initialValues.ds;
+  end
+  initialValues.spot = database.GetSpotSizeFromMagnification(magnification);
+  if parameterMode == 1 || parameterMode == 3
+    initialValues.rth = 1E-8;
+  else
+    % parameterMode == 2
+    numberOfFrequencies = numberOfFrequencies - 1;
+  end
+
+  % Get the data
+  data.x = LoadData(directory, scanFileBase, numberOfFrequencies);
+  if runAnisotropicAnalysis
+    data.y = LoadData(directory, anisotropicFileBase, numberOfFrequencies);
+  end
+
+  % Return the final values
+  finalValues = initialValues;
 end

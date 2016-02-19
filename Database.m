@@ -27,117 +27,111 @@
 %
 
 function handle = Database()
-    % Assign the function handles
-    handle.GetSpotSizeFromMagnification = @GetSpotSizeFromMagnification;
-    handle.GetThermalProperties = @GetThermalProperties;
+  % Assign the function handles
+  handle.GetSpotSizeFromMagnification = @GetSpotSizeFromMagnification;
+  handle.GetThermalProperties = @GetThermalProperties;
 end
 
 function spotSize = GetSpotSizeFromMagnification(magnification)
-    % Return the minimal laser spot size as a function of the optical lens
-    % magnification
-    
-    % Do not reinitialze the data if unneeded
-    persistent database;
-    if isempty(database)
-        database = {{'magnification'    'spot size'}...
-                    {50                 2E-6}...
-                    {20                 5E-6}...
-                    {10                 10E-6}...
-                    {5                  20E-6}};
+  % Return the minimal laser spot size as a function of the optical lens
+  % magnification
+
+  % Do not reinitialze the data if unneeded
+  persistent database;
+  if isempty(database)
+    database = {{'magnification'    'spot size'}...
+      {50                 2E-6}...
+      {20                 5E-6}...
+      {10                 10E-6}...
+      {5                  20E-6}};
+  end
+
+  % Ensure the input argument is valid
+  if ~isnumeric(magnification)
+    error('Incorrect input type: %s\nInput must be a number!\n', class(material));
+  end
+
+  % Search for the requested value
+  found = false;
+  m = 2;
+  while m < length(database)
+    if database{m}{1} == magnification
+      found = true;
+      spotSize = database{m}{2};
+      break;
+    else
+      m = m + 1;
     end
-    
-    % Ensure the input argument is valid
-    if ~isnumeric(magnification)
-        error('Incorrect input type: %s\nInput must be a number!\n', class(material));
-    end
-    
-    % Search for the requested value
-    found = false;
-    m = 2;
-    while m < length(database)
-        if database{m}{1} == magnification
-            found = true;
-            spotSize = database{m}{2};
-            break;
-        else
-            m = m + 1;
-        end
-    end
-    
-    % Check search results
-    if ~found
-        error('Magnification ''%f'' not found in database.\nPlease try again or add it yourself.\n', magnification);
-    end
+  end
+
+  % Check search results
+  if ~found
+    error('Magnification ''%f'' not found in database.\nPlease try again or add it yourself.\n', magnification);
+  end
 end
 
 function thermalProperties = GetThermalProperties(material)
-    % Return the thermal properties of the specified material
-    %
-    % The database uses the minimum number of characters required to uniquely
-    % identify a material. For example, for the set {Au, Ag, Pb} the minimum
-    % unique character length is 2 since a length of 1 cannot determine if
-    % 'Au' or 'Ag' is intended. However, the set {James, Billy, Rodger} has a
-    % minimum character length of 1 since all the items begin with a unique
-    % character.
-    %
-    % The database will return a values for any input argument that matches a
-    % material in the database. However, the behavior may be undefined if the
-    % length of the input argument is less than the unique character string. For
-    % example, if the database were to contain items {Howard, Homer, Hobbs} and
-    % the input argument were 'Ho' then a value would definitely be returned.
-    % However, no guarantee is made as to which item will be selected.
-    
-    % Do not reinitialize the data if unneeded
-    persistent database uniqueChar utilities;
-    if isempty(database)
-        % Steps for modifying the thermal properties database:
-        %   1) Pick a unique and easily identifiable name
-        %   2) Enter the name, using lower case, into the first column
-        %   3) Complete the table with the values for k, d, and rho
-        %   4) Determine the length of the unique length and update the value
-        database = {'material'     'k'            'd'            'rho';
-                    'filmgold'     150            6.07189E-5     19300;
-                    'gold'         318            1.27E-4        19300;
-                    'pyrex'        1.089          6.5E-7         2530;
-                    'quartz'       6.5            3.3114E-7      2649};
-        % Smallest length by which any material may be uniquely identified
-        uniqueChar = 1;
-        
-        % Reform to make it easier to work with
-        database = cell2struct(database(2:end,1:end), database(1,:), 2);
-        
-        % Get a handle to the utilities
-        utilities = Utilities();
+  % Return the thermal properties of the specified material
+  %
+  % The database uses the minimum number of characters required to uniquely
+  % identify a material. For example, for the set {Au, Ag, Pb} the minimum
+  % unique character length is 2 since a length of 1 cannot determine if
+  % 'Au' or 'Ag' is intended. However, the set {James, Billy, Rodger} has a
+  % minimum character length of 1 since all the items begin with a unique
+  % character.
+  %
+  % The database will return a values for any input argument that matches a
+  % material in the database. However, the behavior may be undefined if the
+  % length of the input argument is less than the unique character string. For
+  % example, if the database were to contain items {Howard, Homer, Hobbs} and
+  % the input argument were 'Ho' then a value would definitely be returned.
+  % However, no guarantee is made as to which item will be selected.
+
+  % Do not reinitialize the data if unneeded
+  persistent database uniqueChar utilities;
+  if isempty(database)
+    % Read the data
+    [throwaway.values, throwaway.text, database] = xlsread('Database.xlsx', 'Materials');
+
+    % Smallest length by which any material may be uniquely identified
+    uniqueChar = 1;
+
+    % Reform to make it easier to work with
+    database = cell2struct(database(3:end,1:end), database(2,:), 2);
+    disp(database)
+
+    % Get a handle to the utilities
+    utilities = Utilities();
+  end
+
+  % Run some checks and cast the input argument to lower case
+  if ~ischar(material)
+    error('Incorrect input type: %s\nInput must be a string!\n', class(material));
+  end
+  uniqueWarning = (length(material) < uniqueChar);
+  if uniqueWarning
+    warning('MATLAB:ambiguousSyntax', 'Length of input string smaller that the minimum length required to uniquely identify a material.');
+  end
+  material = lower(material);
+
+  % Search the database for the requested material
+  found = false;
+  compareLength = length(material);
+  for m = 1:length(database)
+    maxLength = min(compareLength, length(database(m).material));
+    if strcmp(database(m).material(1:maxLength), material(1:maxLength)) == true
+      found = true;
+      thermalProperties = database(m);
+      thermalProperties.specificHeat = utilities.GetSpecificHeat(thermalProperties);
+      break;
     end
-    
-    % Run some checks and cast the input argument to lower case 
-    if ~ischar(material)
-        error('Incorrect input type: %s\nInput must be a string!\n', class(material));
-    end
-    uniqueWarning = (length(material) < uniqueChar);
-    if uniqueWarning
-        warning('MATLAB:ambiguousSyntax', 'Length of input string smaller that the minimum length required to uniquely identify a material.');
-    end
-    material = lower(material);
-    
-    % Search the database for the requested material
-    found = false;
-    compareLength = length(material);
-    for m = 1:length(database)
-        maxLength = min(compareLength, length(database(m).material));
-        if strcmp(database(m).material(1:maxLength), material(1:maxLength)) == true
-            found = true;
-            thermalProperties = database(m);
-            thermalProperties.specificHeat = utilities.GetSpecificHeat(thermalProperties);
-            break;
-        end
-    end
-    
-    % Check search results
-    if ~found
-        error('Material ''%s'' not found in database.\nPlease try again or add it yourself.\n', material);
-    elseif uniqueWarning
-        warning('MATLAB:ambiguousSyntax',...
-            'Uniqueness check: %s selected', database{m}{1});
-    end
+  end
+
+  % Check search results
+  if ~found
+    error('Material ''%s'' not found in database.\nPlease try again or add it yourself.\n', material);
+  elseif uniqueWarning
+    warning('MATLAB:ambiguousSyntax',...
+      'Uniqueness check: %s selected', database{m}{1});
+  end
 end
