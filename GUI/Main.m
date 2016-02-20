@@ -22,26 +22,27 @@ function varargout = Main(varargin)
 
 % Edit the above text to modify the response to help Main
 
-% Last Modified by GUIDE v2.5 18-Feb-2016 16:55:55
+% Last Modified by GUIDE v2.5 19-Feb-2016 10:56:34
 
-% Begin initialization code - DO NOT EDIT
-gui_Singleton = 1;
-gui_State = struct('gui_Name',       mfilename, ...
-  'gui_Singleton',  gui_Singleton, ...
-  'gui_OpeningFcn', @Main_OpeningFcn, ...
-  'gui_OutputFcn',  @Main_OutputFcn, ...
-  'gui_LayoutFcn',  [] , ...
-  'gui_Callback',   []);
-if nargin && ischar(varargin{1})
-  gui_State.gui_Callback = str2func(varargin{1});
-end
+  % Begin initialization code - DO NOT EDIT
+  gui_Singleton = 1;
+  gui_State = struct('gui_Name',       mfilename, ...
+    'gui_Singleton',  gui_Singleton, ...
+    'gui_OpeningFcn', @Main_OpeningFcn, ...
+    'gui_OutputFcn',  @Main_OutputFcn, ...
+    'gui_LayoutFcn',  [] , ...
+    'gui_Callback',   []);
+  if nargin && ischar(varargin{1})
+    gui_State.gui_Callback = str2func(varargin{1});
+  end
 
-if nargout
-  [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
-else
-  gui_mainfcn(gui_State, varargin{:});
+  if nargout
+    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
+  else
+    gui_mainfcn(gui_State, varargin{:});
+  end
+  % End initialization code - DO NOT EDIT
 end
-% End initialization code - DO NOT EDIT
 
 
 % --- Executes just before Main is made visible.
@@ -53,25 +54,40 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin)
 % varargin   command line arguments to Main (see VARARGIN)
 
 % Choose default command line output for Main
-handles.output = hObject;
+  handles.output = hObject;
 
-% Load the ON/OFF LED images
-[rawLED.RedOn, throwaway.map, rawLED.alpha] = imread('LED-Red-On.png');
-rawLED.RedOff = imread('LED-Red-Off.png');
-rawLED.GreenOn = imread('LED-Green-On.png');
-rawLED.GreenOff = imread('LED-Green-Off.png');
-% Composite the alpha channel with the background color
-backgroundColor = get(hObject, 'color');
-handles.LED.RedOn = CompositeAlphaToSolid(rawLED.RedOn, alpha, backgroundColor);
-handles.LED.RedOff = CompositeAlphaToSolid(rawLED.RedOff, alpha, backgroundColor);
-handles.LED.GreenOn = CompositeAlphaToSolid(rawLED.GreenOn, alpha, backgroundColor);
-handles.LED.GreenOff = CompositeAlphaToSolid(rawLED.GreenOff, alpha, backgroundColor);
+  % Make the utilities available throughout this GUI
+  handles.images = Images();
 
-% Update handles structure
-guidata(hObject, handles);
+  % Load the ON/OFF LED images
+  [rawLED.RedOn, throwaway.map, rawLED.alpha] = imread('LED-Red-On.png');
+  rawLED.RedOff = imread('LED-Red-Off.png');
+  rawLED.GreenOn = imread('LED-Green-On.png');
+  rawLED.GreenOff = imread('LED-Green-Off.png');
+  % Composite the alpha channel with the background color, then resize
+  backgroundColorRGB = uint8(get(hObject, 'color') * 255);
+  handles.LargeLED.RedOn = handles.images.CompositeAlphaOverSolid(rawLED.RedOn, rawLED.alpha, backgroundColorRGB);
+  handles.LargeLED.RedOff = handles.images.CompositeAlphaOverSolid(rawLED.RedOff, rawLED.alpha, backgroundColorRGB);
+  handles.LargeLED.GreenOn = handles.images.CompositeAlphaOverSolid(rawLED.GreenOn, rawLED.alpha, backgroundColorRGB);
+  handles.LargeLED.GreenOff = handles.images.CompositeAlphaOverSolid(rawLED.GreenOff, rawLED.alpha, backgroundColorRGB);
+  % Resize the images
+  handles.ScaledLED.PositionOn = getpixelposition(handles.LEDOn);
+  handles.ScaledLED.PositionOff = getpixelposition(handles.LEDOff);
+  handles.ScaledLED.RedOn = handles.images.Resize(handles.LargeLED.RedOn, 'width', handles.ScaledLED.PositionOn(3), 'height', handles.ScaledLED.PositionOn(4));
+  handles.ScaledLED.RedOff = handles.images.Resize(handles.LargeLED.RedOff, 'width', handles.ScaledLED.PositionOff(3), 'height', handles.ScaledLED.PositionOff(4));
+  handles.ScaledLED.GreenOn = handles.images.Resize(handles.LargeLED.GreenOn, 'width', handles.ScaledLED.PositionOn(3), 'height', handles.ScaledLED.PositionOn(4));
+  handles.ScaledLED.GreenOff = handles.images.Resize(handles.LargeLED.GreenOff, 'width', handles.ScaledLED.PositionOff(3), 'height', handles.ScaledLED.PositionOff(4));
 
-% UIWAIT makes Main wait for user response (see UIRESUME)
-% uiwait(handles.figure1);
+  % Set initial states
+  handles.power = false;
+  CascadeActionPower(handles);
+
+  % Update handles structure
+  guidata(hObject, handles);
+
+  % UIWAIT makes Main wait for user response (see UIRESUME)
+  % uiwait(handles.figure1);
+end
 
 
 % --- Outputs from this function are returned to the command line.
@@ -81,8 +97,9 @@ function varargout = Main_OutputFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Get default command line output from handles structure
-varargout{1} = handles.output;
+  % Get default command line output from handles structure
+  varargout{1} = handles.output;
+end
 
 
 % --- Executes on button press in SystemPower.
@@ -91,12 +108,25 @@ function SystemPower_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+  % Check the current power status and take the appropriate action
+  if handles.power
+    handles.power = false;
+  else
+    handles.power = true;
+  end
+  CascadeActionPower(handles);
+  
+  % Update handles structure
+  guidata(hObject, handles);
+end
+
 
 % --- Executes on button press in PositionSample.
 function PositionSample_Callback(hObject, eventdata, handles)
 % hObject    handle to PositionSample (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+end
 
 
 % --- Executes on button press in CaptureImage.
@@ -104,6 +134,7 @@ function CaptureImage_Callback(hObject, eventdata, handles)
 % hObject    handle to CaptureImage (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+end
 
 
 % --- Executes on button press in ToolsAndUtilities.
@@ -111,6 +142,7 @@ function ToolsAndUtilities_Callback(hObject, eventdata, handles)
 % hObject    handle to ToolsAndUtilities (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+end
 
 
 % --- Executes on button press in CollectData.
@@ -118,6 +150,7 @@ function CollectData_Callback(hObject, eventdata, handles)
 % hObject    handle to CollectData (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+end
 
 
 % --- Executes on button press in RunAnalysis.
@@ -125,12 +158,31 @@ function RunAnalysis_Callback(hObject, eventdata, handles)
 % hObject    handle to RunAnalysis (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+end
 
+function CascadeActionPower(handles)
+% This function changes the states of GUI elements as needed by the current
+% power state.
 
-% % --- Executes on button press in PlaceholderOff.
-% function SystemOn_Callback(hObject, eventdata, handles)
-% % hObject    handle to PlaceholderOff (see GCBO)
-% % eventdata  reserved - to be defined in a future version of MATLAB
-% % handles    structure with handles and user data (see GUIDATA)
-% 
-% % Hint: get(hObject,'Value') returns toggle state of PlaceholderOff
+  % Get the power state
+  if handles.power
+    state = 'On';
+    antistate = 'Off';
+    set(handles.LEDOff, 'CData', handles.ScaledLED.RedOff);
+    set(handles.LEDOn, 'CData', handles.ScaledLED.GreenOn);
+  else
+    state = 'Off';
+    antistate = 'On';
+    set(handles.LEDOff, 'CData', handles.ScaledLED.RedOn);
+    set(handles.LEDOn, 'CData', handles.ScaledLED.GreenOff);
+  end
+  
+  % Set the states of the GUI elements
+  set(handles.TextOff, 'Enable', antistate);
+  set(handles.TextOn, 'Enable', state);
+  set(handles.CaptureImage, 'Enable', state);
+  set(handles.ToolsAndUtilities, 'Enable', state);
+  set(handles.PositionSample, 'Enable', state);
+  set(handles.CollectData, 'Enable', state);
+  set(handles.RunAnalysis, 'Enable', state);
+end

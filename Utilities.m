@@ -26,56 +26,57 @@
 %               can be leveraged anywhere within the Definitive TCM code.
 
 function handle = Utilities()
-    % Assign the function handles
-    handle.GetFileName = @GetFileName;
-    handle.GetSpecificHeat = @GetSpecificHeat;
+% Assign the function handles
+  handle.GetFileName = @GetFileName;
+  handle.GetSpecificHeat = @GetSpecificHeat;
+  handle.CompositeAlphaOverSolid = @CompositeAlphaOverSolid;
 end
 
 function fileName = GetFileName(directory, fileNameBase, index)
-    % Assembles the file name from the components and return the string
-    fileName = sprintf('%s/%sAll%i.mat', directory, fileNameBase, index);
+% Assembles the file name from the components and return the string
+  fileName = sprintf('%s/%sAll%i.mat', directory, fileNameBase, index);
 end
 
 function specificHeat = GetSpecificHeat(material)
-    % Return the specific heat of the requested material
-    %
-    % If the input argument is a structure then the function will attempt to
-    % extract the k, D, and rho values to calculate the specific heat. If the
-    % input argument is a name then the function will attempt to extract the
-    % values from the thermal properties database and then calculate the
-    % specific heat.
-    k = 0;
-    d = 0;
-    rho = 0;
-    database = Database();
-    
-    % Deterine the type of the input argument
-    if isstruct(material)
-        try
-            k = material.k;
-            d = material.d;
-            rho = material.rho;
-        catch me
-            error('Structure does not have the proper elements. Ensure it contains k, d, and rho.');
-        end
-        if ~isnumeric(k) || ~isnumeric(d) || ~isnumeric(rho)
-            disp('Provided material parameters:');
-            disp(material);
-            error('All material parameters ''k'', ''d'', and ''rho'' must be numeric');
-        end
-    elseif ischar(material)
-        properties = database.GetThermalProperties(material);
-        k = properties.k;
-        d = properties.d;
-        rho = properties.rho;
-    else
-        error('Incorrect input type: %s\nInput must be: \n\t1) a structure with elements k, d, and rho, or \n\t2) a string\n', class(material));
+% Return the specific heat of the requested material
+%
+% If the input argument is a structure then the function will attempt to
+% extract the k, D, and rho values to calculate the specific heat. If the
+% input argument is a name then the function will attempt to extract the
+% values from the thermal properties database and then calculate the
+% specific heat.
+  k = 0;
+  d = 0;
+  rho = 0;
+  database = Database();
+
+  % Deterine the type of the input argument
+  if isstruct(material)
+    try
+      k = material.k;
+      d = material.d;
+      rho = material.rho;
+    catch me
+      error('Structure does not have the proper elements. Ensure it contains k, d, and rho.');
     end
-    
-    specificHeat = k / (d * rho);
+    if ~isnumeric(k) || ~isnumeric(d) || ~isnumeric(rho)
+      disp('Provided material parameters:');
+      disp(material);
+      error('All material parameters ''k'', ''d'', and ''rho'' must be numeric');
+    end
+  elseif ischar(material)
+    properties = database.GetThermalProperties(material);
+    k = properties.k;
+    d = properties.d;
+    rho = properties.rho;
+  else
+    error('Incorrect input type: %s\nInput must be: \n\t1) a structure with elements k, d, and rho, or \n\t2) a string\n', class(material));
+  end
+
+  specificHeat = k / (d * rho);
 end
 
 function data = LoadData(directory, baseName, numberOfFrequencies)
-    % Collects all data from a set of files
-    
+% Collects all data from a set of files
+
 end

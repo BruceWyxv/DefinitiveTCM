@@ -27,14 +27,14 @@
 %
 
 function handle = Database()
-  % Assign the function handles
+% Assign the function handles
   handle.GetSpotSizeFromMagnification = @GetSpotSizeFromMagnification;
   handle.GetThermalProperties = @GetThermalProperties;
 end
 
 function spotSize = GetSpotSizeFromMagnification(magnification)
-  % Return the minimal laser spot size as a function of the optical lens
-  % magnification
+% Return the minimal laser spot size as a function of the optical lens
+% magnification
 
   % Do not reinitialze the data if unneeded
   persistent database;
@@ -71,21 +71,21 @@ function spotSize = GetSpotSizeFromMagnification(magnification)
 end
 
 function thermalProperties = GetThermalProperties(material)
-  % Return the thermal properties of the specified material
-  %
-  % The database uses the minimum number of characters required to uniquely
-  % identify a material. For example, for the set {Au, Ag, Pb} the minimum
-  % unique character length is 2 since a length of 1 cannot determine if
-  % 'Au' or 'Ag' is intended. However, the set {James, Billy, Rodger} has a
-  % minimum character length of 1 since all the items begin with a unique
-  % character.
-  %
-  % The database will return a values for any input argument that matches a
-  % material in the database. However, the behavior may be undefined if the
-  % length of the input argument is less than the unique character string. For
-  % example, if the database were to contain items {Howard, Homer, Hobbs} and
-  % the input argument were 'Ho' then a value would definitely be returned.
-  % However, no guarantee is made as to which item will be selected.
+% Return the thermal properties of the specified material
+%
+% The database uses the minimum number of characters required to uniquely
+% identify a material. For example, for the set {Au, Ag, Pb} the minimum
+% unique character length is 2 since a length of 1 cannot determine if
+% 'Au' or 'Ag' is intended. However, the set {James, Billy, Rodger} has a
+% minimum character length of 1 since all the items begin with a unique
+% character.
+%
+% The database will return a values for any input argument that matches a
+% material in the database. However, the behavior may be undefined if the
+% length of the input argument is less than the unique character string. For
+% example, if the database were to contain items {Howard, Homer, Hobbs} and
+% the input argument were 'Ho' then a value would definitely be returned.
+% However, no guarantee is made as to which item will be selected.
 
   % Do not reinitialize the data if unneeded
   persistent database uniqueChar utilities;
