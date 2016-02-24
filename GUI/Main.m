@@ -22,7 +22,7 @@ function varargout = Main(varargin)
 
 % Edit the above text to modify the response to help Main
 
-% Last Modified by GUIDE v2.5 19-Feb-2016 10:56:34
+% Last Modified by GUIDE v2.5 23-Feb-2016 11:27:46
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -73,6 +73,17 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin)
   % Resize the images
   handles.ScaledLED.PositionOn = getpixelposition(handles.LEDOn);
   handles.ScaledLED.PositionOff = getpixelposition(handles.LEDOff);
+  if handles.ScaledLED.PositionOn(3) < handles.ScaledLED.PositionOn(4)
+    handles.ScaledLED.PositionOn(3) = floor(handles.ScaledLED.PositionOn(3));
+    handles.ScaledLED.PositionOn(4) = handles.ScaledLED.PositionOn(3);
+    handles.ScaledLED.PositionOff(3) = handles.ScaledLED.PositionOn(3);
+    handles.ScaledLED.PositionOff(4) = handles.ScaledLED.PositionOn(3);
+  else
+    handles.ScaledLED.PositionOn(4) = floor(handles.ScaledLED.PositionOn(4));
+    handles.ScaledLED.PositionOn(3) = handles.ScaledLED.PositionOn(4);
+    handles.ScaledLED.PositionOff(3) = handles.ScaledLED.PositionOn(4);
+    handles.ScaledLED.PositionOff(4) = handles.ScaledLED.PositionOn(4);
+  end
   handles.ScaledLED.RedOn = handles.images.Resize(handles.LargeLED.RedOn, 'width', handles.ScaledLED.PositionOn(3), 'height', handles.ScaledLED.PositionOn(4));
   handles.ScaledLED.RedOff = handles.images.Resize(handles.LargeLED.RedOff, 'width', handles.ScaledLED.PositionOff(3), 'height', handles.ScaledLED.PositionOff(4));
   handles.ScaledLED.GreenOn = handles.images.Resize(handles.LargeLED.GreenOn, 'width', handles.ScaledLED.PositionOn(3), 'height', handles.ScaledLED.PositionOn(4));
@@ -81,12 +92,14 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin)
   % Set initial states
   handles.power = false;
   CascadeActionPower(handles);
+  imshow('TCMLogo.jpg');
+  disp(get(handles.LEDOn));
+%   TODO: Figure out how to get the LEDOff and LEDOn elements to not
+%   receive keyboard focus when tabbing to select
 
   % Update handles structure
+  movegui(hObject, 'center');
   guidata(hObject, handles);
-
-  % UIWAIT makes Main wait for user response (see UIRESUME)
-  % uiwait(handles.figure1);
 end
 
 
@@ -126,6 +139,10 @@ function PositionSample_Callback(hObject, eventdata, handles)
 % hObject    handle to PositionSample (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  % Open the PositionSample window.
+  % PositionSample is modal, which means that Main will be blocked until
+  % PositionSample closes.
+  PositionSample;
 end
 
 
