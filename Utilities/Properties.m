@@ -1,41 +1,25 @@
-% File:         Utilities.m
+% File:         Properties.m
 % Author:       Brycen Wendt (brycen.wendt@inl.gov; wendbryc@isu.edu)
 % Date Created: 10/22/2015
 %
-% Usage:        handle        = Utilities()
-%               fileName      = <handle>.GetFileName(<directory>, <base>, <index>)
+% Usage:        handle        = Properties()
 %               specificHeat  = <handle>.GetSpecificHeat(<material>)
 %                             = <handle>.GetSpecificHeat(<thermalProps>)
-%               data          = <handle>.LoadData(<directory>, <base>, <count>)
-% Inputs:       <base>          Base of the file name, used to construct the
-%                               file name as <base>All<index>.mat
-%               <count>         Number of frequency sets to load when loading
-%                               data
-%               <directory>     Absolute path of the data file directory
-%               <handle>        Object handle to the utilities object
-%               <index>         Index number of the frequency set being
-%                               requested
+% Inputs:       <handle>        Object handle to the utilities object
 %               <material>      String name of material as it appears in the
 %                               database
 %               <thermalProps>  Structure of material, k, d, and rho
-% Outputs:      fileName        Absolute path to the TCM data file
-%               handle          Object handle to the database object
+% Outputs:      handle          Object handle to this object
 %               specificHeat    Specific heat of the requested material
 %
-% Description:  The utilities file is a basic collection of universal tools that
-%               can be leveraged anywhere within the Definitive TCM code.
+% Description:  A collection of tools related to calculating or operating
+%               on properties of materials.
 
-function handle = Utilities()
+function handle = Properties()
 % Assign the function handles
-  handle.GetFileName = @GetFileName;
   handle.GetSpecificHeat = @GetSpecificHeat;
-  handle.CompositeAlphaOverSolid = @CompositeAlphaOverSolid;
 end
 
-function fileName = GetFileName(directory, fileNameBase, index)
-% Assembles the file name from the components and return the string
-  fileName = sprintf('%s/%sAll%i.mat', directory, fileNameBase, index);
-end
 
 function specificHeat = GetSpecificHeat(material)
 % Return the specific heat of the requested material
@@ -45,9 +29,6 @@ function specificHeat = GetSpecificHeat(material)
 % input argument is a name then the function will attempt to extract the
 % values from the thermal properties database and then calculate the
 % specific heat.
-  k = 0;
-  d = 0;
-  rho = 0;
   database = Database();
 
   % Deterine the type of the input argument
@@ -74,9 +55,4 @@ function specificHeat = GetSpecificHeat(material)
   end
 
   specificHeat = k / (d * rho);
-end
-
-function data = LoadData(directory, baseName, numberOfFrequencies)
-% Collects all data from a set of files
-
 end

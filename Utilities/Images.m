@@ -32,6 +32,7 @@ function handle = Images()
   handle.LanczosWindow = @LanczosKernel;
 end
 
+
 function composite = CompositeAlphaOverSolid(RGB, alpha, backgroundColor)
 % Return a composite of an RGB image, with an associated alpha map,
 % blended into a solid background color.
@@ -54,6 +55,7 @@ function composite = CompositeAlphaOverSolid(RGB, alpha, backgroundColor)
   % 0, and anything greater than 255 will be collapsed to 255.
   composite = uint8(RGB);
 end
+
 
 function scaled = Resize(original, varargin)
 % Resize an image according the input arguments
@@ -141,6 +143,7 @@ function scaled = Resize(original, varargin)
   end
 end
 
+
 function scaled = Lanczos(original, newSize)
 % Resize an image using the Lancsoz method. In many cases this is
 % considered superior to bicubic sampling, although at a slight performance
@@ -172,6 +175,10 @@ function scaled = Lanczos(original, newSize)
   scaled = uint8(scaled * 255);
 end
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Private functions not exposed outside this .m file %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function scaledRow = Lanczos1D(row, newSize, filterSize)
   oldSize = length(row);
   sum = zeros(1, newSize, 3);
@@ -199,6 +206,7 @@ function scaledRow = Lanczos1D(row, newSize, filterSize)
   % Normalize everything
   scaledRow = sum ./ weight;
 end
+
 
 function result = LanczosKernel(x, filterSize)
 % Apply the Lanczos window
