@@ -27,7 +27,7 @@ classdef ESP3000_Control < GPIB_Interface
       end
       
       % Beep out the specified pattern
-      for i = 1:length(varagin)
+      for i = 1:length(varargin)
         pause(varargin{i}(1));
         myself.PreserveOldCommandAndReply(true);
         myself.SendCommand('99PA0.0');

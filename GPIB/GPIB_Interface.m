@@ -42,10 +42,10 @@ classdef GPIB_Interface < handle
       % of '0'
       retry = true;
       while retry
-        [retry, deviceHandle] = ConnectDevice(address, name);
+        [retry, deviceHandle] = GPIB_Interface.ConnectDevice(address, name);
       end
       myself.deviceHandle = deviceHandle;
-      myself.good = strcmp('open', get(deviceHandle, 'Status'));
+      myself.good = deviceHandle ~= -1;
       
       % Set the remaining properties
       myself.address = address;
@@ -97,14 +97,14 @@ classdef GPIB_Interface < handle
         deviceHandle = gpib('ni', 0, address);
         fopen(deviceHandle);
       catch initializationError
-        message = sptrinf('Failed to initialize "%s" with index "%i".\n\nWhat would you like to do?', name, address);
-        choice = questdlg(message, 'Ignore', 'Abort', 'Retry', 'Retry');
+        message = sprintf('Failed to initialize "%s" with index "%i".\n\nWhat would you like to do?', name, address);
+        choice = questdlg(message, 'Connection Error', 'Ignore', 'Abort', 'Retry', 'Retry');
         switch choice
           case 'Abort'
             rethrow(initializationError);
             
-          % No action to take if "Ignore" is selected
-          %case 'Ignore'
+          case 'Ignore'
+            deviceHandle = -1;
 
           case 'Retry'
             retry = true;
