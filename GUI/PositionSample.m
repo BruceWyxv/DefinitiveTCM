@@ -22,7 +22,7 @@ function varargout = PositionSample(varargin)
 
 % Edit the above text to modify the response to help PositionSample
 
-% Last Modified by GUIDE v2.5 25-Feb-2016 16:27:00
+% Last Modified by GUIDE v2.5 26-Feb-2016 12:00:21
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -81,14 +81,16 @@ function PositionSample_OpeningFcn(hObject, eventdata, handles, varargin)
   addlistener(handles.YSlider, 'Value', 'PreSet', @(~, ~) UpdateSlider2Edit(handles.YSlider, handles.YEdit, handles.StageRanges(2,:)));
   addlistener(handles.ZSlider, 'Value', 'PreSet', @(~, ~) UpdateSlider2Edit(handles.ZSlider, handles.ZEdit, handles.StageRanges(3,:)));
   
-  % Set the speeds
+  % Set the speeds and motor controls
   set(handles.Moderate, 'Value', 1);
   handles.MotorSpeed = 'Moderate';
   handles.Speeds = [0.01, 0.05;...
                     0.02, 0.1;...
                     0.04, 0.2];
+  set(handles.ComputerControl, 'Value', 1);
+  handles.ComputerControl = true;
+  UpdateControlSystem(handles);
   handles = UpdateMotorSpeedGroup(handles);
-  
 
   % Update handles structure
   movegui(hObject, 'center');
@@ -389,6 +391,30 @@ function XRightSlow_Callback(hObject, eventdata, handles)
 end
 
 
+% --- Executes on button press in ComputerControl.
+function ComputerControl_Callback(hObject, eventdata, handles)
+% hObject    handle to ComputerControl (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of ComputerControl
+  handles.ComputerControl = true;
+  UpdateControlSystem(handles);
+end
+
+
+% --- Executes on button press in JoystickControl.
+function JoystickControl_Callback(hObject, eventdata, handles)
+% hObject    handle to JoystickControl (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of JoystickControl
+  handles.ComputerControl = false;
+  UpdateControlSystem(handles);
+end
+
+
 function SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback)
 % Check the range of the new value and sanitize if it is out of bounds
   min = get(slider, 'Min');
@@ -579,6 +605,17 @@ function handles = UpdateCameraSelectionGroup(handles, eventdata)
       set(handles.RepositionStageButton, 'Enable', 'on');
     end
   end
+end
+
+
+function UpdateControlSystem(handles)
+% Updates the control system to what the user selected
+  if handles.ComputerControl
+    state = 'on';
+  else
+    state = 'off';
+  end
+  set(findall([handles.XAxisGroup, handles.YAxisGroup, handles.ZAxisGroup], '-property', 'Enable'), 'Enable', state);
 end
 
 

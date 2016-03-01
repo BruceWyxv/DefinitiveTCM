@@ -3,17 +3,23 @@
 % Date Created: 09/??/2015
 %
 % Usage:        handle        = Database()
+%               index         = <handle>.GetIndexOfLockInAmpTimeConstant(<timeConstant>)
+%               timeConstant  = <handle>.GetLockInAmpTimeConstants(index)
 %               spotSize      = <handle>.GetSpotSizeFromMagnification(<mag>)
 %               thermalProps  = <handle>.GetThermalProperties(<material>)
 %               materials     = <handle>.ListMaterials()
 % Inputs:       <handle>        Object handle to the database object
+%               <index>         Index of lock-in amp time constant
 %               <mag>           Magnification of the optical lens
 %               <material>      String name of material
 %               <thermalProps>  Structure of material, k, d, and rho
+%               <timeConstant>  Lock-in amp time constant
 % Outputs:      handle          Object handle to the database object
+%               index           Index of lock-in amp time constant
 %               materials       A cell array of material names
 %               spotSize        Size of the focused laser beam
 %               thermalProps    Structure of material, k, d, and rho
+%               timeConstant    Lock-in amp time constant
 %
 % Description:  This file is used to gather and organize any types of data that
 %               lend themselves to being stored and retrieved from a single
@@ -30,16 +36,59 @@
 
 function handle = Database()
 % Assign the function handles
-  handle.GetDatabaseFile = @GetDatabaseFile;
+  handle.GetIndexOfLockInAmpTimeConstant = @GetIndexOfLockInAmpTimeConstant;
+  handle.GetLockInAmpTimeConstants = @GetLockInAmpTimeConstants;
   handle.GetSpotSizeFromMagnification = @GetSpotSizeFromMagnification;
   handle.GetThermalProperties = @GetThermalProperties;
   handle.ListMaterials = @ListMaterials;
 end
 
 
-function databaseFile = GetDatabaseFile()
-% Name/path of the file containing the database
-  databaseFile = 'Database.xlsx';
+function timeConstant = GetLockInAmpTimeConstants(index)
+% Return the time constant associated with the index value, as listed in
+% the SRS830 Operating Manual and Programming Reference
+  
+  % Ensure the data is loaded
+  ReadLockInAmpTimeConstantsToGlobal()
+  globalDatabase = GlobalDatabase();
+  database = globalDatabase.lockInAmpTimeConstants;
+  
+  % Ensure the input argument is valid
+  if ~isnumeric(index)
+    error('Incorrect input type: %s\nInput must be a number!\n', class(material));
+  end
+  
+  % Search for the requested value
+  timeConstant = database.timeConstant(database.index == index);
+  
+  % Check search results
+  if isempty(timeConstant)
+    error('Time constant index ''%i'' not found in database.\nPlease enter a valid index ranging from 0 to 19', index);
+  end
+end
+
+
+function index = GetIndexOfLockInAmpTimeConstant(timeConstant)
+% Return the time constant associated with the index value, as listed in
+% the SRS830 Operating Manual and Programming Reference
+  
+  % Ensure the data is loaded
+  ReadLockInAmpTimeConstantsToGlobal()
+  globalDatabase = GlobalDatabase();
+  database = globalDatabase.lockInAmpTimeConstants;
+  
+  % Ensure the input argument is valid
+  if ~isnumeric(timeConstant)
+    error('Incorrect input type: %s\nInput must be a number!\n', class(material));
+  end
+  
+  % Search for the requested value
+  index = database.index(database.timeConstant == timeConstant);
+  
+  % Check search results
+  if isempty(index)
+    error('Time constant ''%g'' not found in database.\nPlease check the "%s" for valid time constants.', timeConstant, GetDatabaseFile());
+  end
 end
 
 
@@ -131,6 +180,12 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Private functions not exposed outside this .m file %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function databaseFile = GetDatabaseFile()
+% Name/path of the file containing the database
+  databaseFile = 'Database.xlsx';
+end
+
+
 function getDatabase = GlobalDatabase(varargin)
 % Create a global database that everything accesses
   persistent globalDatabase;
@@ -147,6 +202,23 @@ function getDatabase = GlobalDatabase(varargin)
     error('Only one input argument accepted!');
   elseif nargout > 1
     warning('MATLAB:ambiguousSyntax', 'Only one output argument provided!');
+  end
+end
+
+function ReadLockInAmpTimeConstantsToGlobal()
+% Read the time constant to the global database
+  globalDatabase = GlobalDatabase();
+  
+  % Do not reinitialze the data if unneeded
+  if ~isfield(globalDatabase, 'lockInAmpTimeConstants')
+    % Read the data and set the global database
+    lockInAmpTimeConstants = readtable(GetDatabaseFile(), 'Sheet', 'SRS830TimeConstants');
+    globalDatabase.lockInAmpTimeConstants = lockInAmpTimeConstants;
+    GlobalDatabase(globalDatabase);
+    
+    % Process the database
+    fprintf('Lock-in amp time constants database loaded from "%s"\n', GetDatabaseFile());
+    fprintf('\tNumber of items found:   \t%i\n', height(lockInAmpTimeConstants));
   end
 end
 
