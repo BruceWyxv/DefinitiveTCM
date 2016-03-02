@@ -67,7 +67,7 @@ classdef GPIB_Interface < handle
         id = id + 1;
       end
       
-      name = sptrinf('Device%02i', id);
+      name = sprintf('Device%02i', id);
     end
     
     function temporary = PreserveOldCommandAndReply(myself, state)
@@ -115,8 +115,21 @@ classdef GPIB_Interface < handle
   
   % Define globally accessible methods
   methods
-    function reply = SendCommand(myself, command)
-    % Send a command to the device and record the input
+    function Command(myself, command)
+    % Send a command to the device
+      myself.Communicate(command);
+    end
+    
+    function reply = Query(myself, command)
+    % Send a query to the device and record the reply
+      reply = myself.Communicate(command);
+    end
+  end
+  
+  % Define methods with access by this class only
+  methods (Access = private)
+    function reply = Communicate(myself, command)
+    % Sends a command to the device, optionally requesting a reply
       % Check for valid input
       if ~ischar(command)
         % Only print a warning message, do not send or receive any data
@@ -125,7 +138,18 @@ classdef GPIB_Interface < handle
         % Send the command and record the response
         if myself.good
           fprintf(myself.deviceHandle, command);
-          reply = fscanf(myself.deviceHandle);
+          % Get a reply value if one was requested
+          if nargout == 1
+            % Wait just briefly to allow the device to process the previous
+            % command and reply. It was discovered through long testing
+            % that 0.01 is too short, but 0.02 gives the device long enough
+            % to sort out the barrage of electrical impulses it is
+            % receiving via GPIB.
+            pause(0.02);
+            reply = fscanf(myself.deviceHandle);
+          else
+            reply = '';
+          end
         else
           warning('GPIB_Interface:BadInterface', 'Device interface is invalid. Ignoring command "%s".', command);
         end
@@ -139,10 +163,7 @@ classdef GPIB_Interface < handle
         end
       end
     end
-  end
-  
-  % Define methods with access by this class only
-  methods (Access = private)
+    
     function delete(myself)
     % Closes the interface to the device
       if myself.good

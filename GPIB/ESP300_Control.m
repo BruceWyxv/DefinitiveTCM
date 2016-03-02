@@ -1,4 +1,4 @@
-classdef ESP3000_Control < GPIB_Interface
+classdef ESP300_Control < GPIB_Interface
 % Provides commands for interfacing with the EXP3000 stage controller
 %
 % Control of the ESP3000 is simplified by abstracting the confusing and
@@ -8,11 +8,11 @@ classdef ESP3000_Control < GPIB_Interface
 % function MoveToAbsolute(1, 0.0) is used.
   
   methods
-    function myself = ESP3000_Control(address, name)
+    function myself = ESP300_Control(address, name)
     % Construct this class and call the superclass constructor to initialze
     % the interface to the device
       if nargin == 1
-        name = GetUnknownDeviceName();
+        name = GPIB_Interface.GetUnknownDeviceName();
       end
       myself@GPIB_Interface(address, name);
     end
@@ -27,7 +27,7 @@ classdef ESP3000_Control < GPIB_Interface
       end
       
       % Beep out the specified pattern
-      for i = 1:length(varargin)
+      for i = 1:length(varagin)
         pause(varargin{i}(1));
         myself.PreserveOldCommandAndReply(true);
         myself.SendCommand('99PA0.0');
