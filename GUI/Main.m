@@ -55,15 +55,21 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin)
 
 % Choose default command line output for Main
   handles.output = hObject;
+  
+  % Set some defaults
+  [rawLED.RedOn, throwaway.map, rawLED.alpha] = imread('LED-Red-On.png');
+  rawLED.RedOff = imread('LED-Red-Off.png');
+  rawLED.GreenOn = imread('LED-Green-On.png');
+  rawLED.GreenOff = imread('LED-Green-Off.png');
+  TCMLogo = 'TCMLogo.jpg';
+  handles.cameras.loadID = 0;
+  handles.cameras.wideID = 1;
+  handles.cameras.scanID = 2;
 
   % Make the utilities available throughout this GUI
   handles.images = Images();
 
   % Load the ON/OFF LED images
-  [rawLED.RedOn, throwaway.map, rawLED.alpha] = imread('LED-Red-On.png');
-  rawLED.RedOff = imread('LED-Red-Off.png');
-  rawLED.GreenOn = imread('LED-Green-On.png');
-  rawLED.GreenOff = imread('LED-Green-Off.png');
   % Composite the alpha channel with the background color, then resize
   backgroundColorRGB = uint8(get(hObject, 'color') * 255);
   handles.LargeLED.RedOn = handles.images.CompositeAlphaOverSolid(rawLED.RedOn, rawLED.alpha, backgroundColorRGB);
@@ -92,7 +98,7 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin)
   % Set initial states
   handles.power = false;
   CascadeActionPower(handles);
-  imshow('TCMLogo.jpg');
+  imshow(TCMLogo);
   disp(get(handles.LEDOn));
 %   TODO: Figure out how to get the LEDOff and LEDOn elements to not
 %   receive keyboard focus when tabbing to select
@@ -142,7 +148,7 @@ function PositionSample_Callback(hObject, eventdata, handles)
   % Open the PositionSample window.
   % PositionSample is modal, which means that Main will be blocked until
   % PositionSample closes.
-  PositionSample;
+  PositionSample('Cameras', handles.cameras);
 end
 
 
@@ -192,6 +198,17 @@ function CascadeActionPower(handles)
     antistate = 'On';
     set(handles.LEDOff, 'CData', handles.ScaledLED.RedOn);
     set(handles.LEDOn, 'CData', handles.ScaledLED.GreenOff);
+  end
+  
+  % Connect to, or disconnect, from the hardware
+  if handles.power
+    handles.cameras.load = videoinput('matrox', handles.cameras.loadID);
+    handles.cameras.wide = videoinput('matrox', handles.cameras.wideID);
+    handles.cameras.scan = videoinput('matrox', handles.cameras.scanID);
+  else
+    handles.cameras.load = '';
+    handles.cameras.wide = '';
+    handles.cameras.scan = '';
   end
   
   % Set the states of the GUI elements

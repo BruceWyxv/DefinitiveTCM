@@ -57,19 +57,36 @@ function PositionSample_OpeningFcn(hObject, eventdata, handles, varargin)
   % Choose default command line output for PositionSample
   handles.output = hObject;
   
+  % Check the input arguments
+  if ~isempty(varargin)
+    parser = inputParser;
+    parser.addParameter('Cameras', '', @isstruct);
+    % Parse the input arguments
+    parser.KeepUnmatched = true;
+    try
+      parser.parse(varargin{:});
+    catch me
+      error('Error when trying to parse input arguments:   %s', me.message);
+    end
+    % Assigned values
+    handles.cameras = parser.Results.cameras;
+    preview(handles.cameras.load, handles.CameraView);
+  end
+  
   % Set some parameters
-  % TODO Detect where the sample is and choose the appropriate camera
+  % TODO Detect where the sample is and choose the appropriate camera - BEGIN
   set(handles.SampleLoadingCamera, 'Value', 1);
   handles.CameraPosition = 'SampleLoading';
   handles.StagePosition = handles.CameraPosition;
+  % TODO Detect where the sample is and choose the appropriate camera - END
   set(handles.AutoMoveStage, 'Value', 1);
   handles = UpdateCameraSelectionGroup(handles);
-  handles.StageRanges = [0, 100;...
-                         0, 100;...
-                         0, 100];
-  set(handles.XEdit, 'String', '50');
-  set(handles.YEdit, 'String', '50');
-  set(handles.ZEdit, 'String', '50');
+  handles.StageRanges = [-10, 10;...
+                         -10, 10;...
+                         -2, 2];
+  set(handles.XEdit, 'String', '0');
+  set(handles.YEdit, 'String', '0');
+  set(handles.ZEdit, 'String', '0');
   UpdateEdit2Slider(handles.XEdit, handles.XSlider, handles.StageRanges(1,:));
   UpdateEdit2Slider(handles.YEdit, handles.YSlider, handles.StageRanges(2,:));
   UpdateEdit2Slider(handles.ZEdit, handles.ZSlider, handles.StageRanges(3,:));
@@ -552,7 +569,7 @@ function handles = MoveStageToCamera(handles)
 end
 
 
-function value = SanitizeEdit(edit, stageRange)
+function [value, clean] = SanitizeEdit(edit, stageRange)
 % Checks a user's input and sanitizes it
   entry = get(edit, 'String');
   
@@ -570,9 +587,6 @@ function value = SanitizeEdit(edit, stageRange)
     value = stageRange(2);
   end
   clean = sprintf('%g', value);
-    
-  % Set the reformatted value
-  set(edit, 'String', clean);
 end
 
 
@@ -622,7 +636,7 @@ end
 function UpdateEdit2Slider(edit, slider, stageRange)
 % Updates the values of the sliders according to the values entered in the
 % edit boxes. Also sanitizes the input
-  value = SanitizeEdit(edit, stageRange);
+  [value, clean] = SanitizeEdit(edit, stageRange)
   
   stageMin = stageRange(1);
   stageMax = stageRange(2);
@@ -631,6 +645,7 @@ function UpdateEdit2Slider(edit, slider, stageRange)
   stageRatio = (value - stageMin) / (stageMax - stageMin);
   sliderValue = stageRatio * (sliderMax - sliderMin) + sliderMin;
   set(slider, 'Value', sliderValue);
+  set(edit, 'String', clean);
 end
 
 
@@ -674,7 +689,7 @@ function UpdateSlider2Edit(slider, edit, stageRange)
 % Updates the values of the sliders according to the values entered in the
 % edit boxes. Also sanitizes the input
   
-  value = get(slider, 'Value');
+  value = get(slider, 'Value')
   stageMin = stageRange(1);
   stageMax = stageRange(2);
   sliderMin = get(slider, 'Min');

@@ -100,9 +100,7 @@ function finalValues = FitTCMData(substrate, film, filmThickness, directory, sca
   try
     parser.parse(substrate, film, filmThickness, directory, scanFileBase, varargin{:});
   catch me
-    errorString = ['Error when trying to parse input arguments:   '...
-      me.message];
-    error(errorString);
+    error('Error when trying to parse input arguments:   %s', me.message);
   end
   if ~isempty(fieldnames(parser.Unmatched))
     warning('MATLAB:unknownArgument', 'Some arguments were not recognized:');
