@@ -22,7 +22,7 @@ function varargout = PositionSample(varargin)
 
 % Edit the above text to modify the response to help PositionSample
 
-% Last Modified by GUIDE v2.5 26-Feb-2016 12:00:21
+% Last Modified by GUIDE v2.5 03-Mar-2016 13:19:17
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -60,7 +60,7 @@ function PositionSample_OpeningFcn(hObject, eventdata, handles, varargin)
   % Check the input arguments
   if ~isempty(varargin)
     parser = inputParser;
-    parser.addParameter('Cameras', '', @isstruct);
+    parser.addParameter('cameras', '', @isstruct);
     % Parse the input arguments
     parser.KeepUnmatched = true;
     try
@@ -70,10 +70,14 @@ function PositionSample_OpeningFcn(hObject, eventdata, handles, varargin)
     end
     % Assigned values
     handles.cameras = parser.Results.cameras;
-    preview(handles.cameras.load, handles.CameraView);
   end
   
   % Set some parameters
+  handles.CameraView = image(zeros(640, 480, 3));
+  parentFigure = handles.ViewportPosition.Parent;
+  set(parentFigure, 'Units', 'pixels');
+  set(parentFigure, 'Position', get(handles.ViewportPosition, 'Position'));
+  preview(handles.cameras.load, handles.CameraView);
   % TODO Detect where the sample is and choose the appropriate camera - BEGIN
   set(handles.SampleLoadingCamera, 'Value', 1);
   handles.CameraPosition = 'SampleLoading';
@@ -689,7 +693,7 @@ function UpdateSlider2Edit(slider, edit, stageRange)
 % Updates the values of the sliders according to the values entered in the
 % edit boxes. Also sanitizes the input
   
-  value = get(slider, 'Value')
+  value = get(slider, 'Value');
   stageMin = stageRange(1);
   stageMax = stageRange(2);
   sliderMin = get(slider, 'Min');

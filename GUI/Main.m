@@ -62,9 +62,9 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin)
   rawLED.GreenOn = imread('LED-Green-On.png');
   rawLED.GreenOff = imread('LED-Green-Off.png');
   TCMLogo = 'TCMLogo.jpg';
-  handles.cameras.loadID = 0;
-  handles.cameras.wideID = 1;
-  handles.cameras.scanID = 2;
+  handles.cameras.loadID = 1;
+  handles.cameras.wideID = 2;
+  handles.cameras.scanID = 3;
 
   % Make the utilities available throughout this GUI
   handles.images = Images();
@@ -97,9 +97,8 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin)
 
   % Set initial states
   handles.power = false;
-  CascadeActionPower(handles);
+  handles = CascadeActionPower(handles);
   imshow(TCMLogo);
-  disp(get(handles.LEDOn));
 %   TODO: Figure out how to get the LEDOff and LEDOn elements to not
 %   receive keyboard focus when tabbing to select
 
@@ -133,7 +132,7 @@ function SystemPower_Callback(hObject, eventdata, handles)
   else
     handles.power = true;
   end
-  CascadeActionPower(handles);
+  handles = CascadeActionPower(handles);
   
   % Update handles structure
   guidata(hObject, handles);
@@ -183,7 +182,7 @@ function RunAnalysis_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 end
 
-function CascadeActionPower(handles)
+function handles = CascadeActionPower(handles)
 % This function changes the states of GUI elements as needed by the current
 % power state.
 

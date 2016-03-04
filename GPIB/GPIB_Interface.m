@@ -53,22 +53,6 @@ classdef GPIB_Interface < handle
       myself.name = name;
       myself.reply = '';
     end
-  end
-  
-  % Define static methods with access by this class and subclasses
-  methods (Static = true, Access = protected)
-    function name = GetUnknownDeviceName()
-    % Generate a unique name for a device
-      persistent id;
-      
-      if isempty(id)
-        id = 1;
-      else
-        id = id + 1;
-      end
-      
-      name = sprintf('Device%02i', id);
-    end
     
     function temporary = PreserveOldCommandAndReply(myself, state)
     % Toggles the next invocation of SendCommand()'s behavior to overwrite
@@ -84,50 +68,12 @@ classdef GPIB_Interface < handle
         temporary = myself.termporary;
       end
       
-      myself.temporary = termporary;
+      myself.temporary = temporary;
     end
   end
   
-  % Define static methods with access by this class only
-  methods (Static = true, Access = private)
-    function [retry, deviceHandle] = ConnectDevice(address, name)
-    % Attempts to set up a connection to a device
-      retry = false;
-      try
-        deviceHandle = gpib('ni', 0, address);
-        fopen(deviceHandle);
-      catch initializationError
-        message = sprintf('Failed to initialize "%s" with index "%i".\n\nWhat would you like to do?', name, address);
-        choice = questdlg(message, 'Connection Error', 'Ignore', 'Abort', 'Retry', 'Retry');
-        switch choice
-          case 'Abort'
-            rethrow(initializationError);
-            
-          case 'Ignore'
-            deviceHandle = -1;
-
-          case 'Retry'
-            retry = true;
-        end
-      end
-    end
-  end
-  
-  % Define globally accessible methods
-  methods
-    function Command(myself, command)
-    % Send a command to the device
-      myself.Communicate(command);
-    end
-    
-    function reply = Query(myself, command)
-    % Send a query to the device and record the reply
-      reply = myself.Communicate(command);
-    end
-  end
-  
-  % Define methods with access by this class only
-  methods (Access = private)
+  % Define static methods with access by this class and subclasses
+  methods (Static = true, Access = protected)
     function reply = Communicate(myself, command)
     % Sends a command to the device, optionally requesting a reply
       % Check for valid input
@@ -164,6 +110,60 @@ classdef GPIB_Interface < handle
       end
     end
     
+    function name = GetUnknownDeviceName()
+    % Generate a unique name for a device
+      persistent id;
+      
+      if isempty(id)
+        id = 1;
+      else
+        id = id + 1;
+      end
+      
+      name = sprintf('Device%02i', id);
+    end
+  end
+  
+  % Define static methods with access by this class only
+  methods (Static = true, Access = private)
+    function [retry, deviceHandle] = ConnectDevice(address, name)
+    % Attempts to set up a connection to a device
+      retry = false;
+      try
+        deviceHandle = gpib('ni', 0, address);
+        fopen(deviceHandle);
+      catch initializationError
+        message = sprintf('Failed to initialize "%s" with index "%i".\n\nWhat would you like to do?', name, address);
+        choice = questdlg(message, 'Connection Error', 'Ignore', 'Abort', 'Retry', 'Retry');
+        switch choice
+          case 'Abort'
+            rethrow(initializationError);
+            
+          case 'Ignore'
+            deviceHandle = -1;
+
+          case 'Retry'
+            retry = true;
+        end
+      end
+    end
+  end
+  
+  % Define globally accessible methods
+  methods
+    function RawCommand(myself, command)
+    % Send a command to the device
+      myself.Communicate(command);
+    end
+    
+    function reply = RawQuery(myself, command)
+    % Send a query to the device and record the reply
+      reply = myself.Communicate(command);
+    end
+  end
+  
+  % Define methods with access by this class only
+  methods (Access = private)
     function delete(myself)
     % Closes the interface to the device
       if myself.good
