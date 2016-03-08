@@ -171,6 +171,5 @@ classdef GPIB_Interface < handle
       end
     end
   end
-  
 end
 
