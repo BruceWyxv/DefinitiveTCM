@@ -46,7 +46,7 @@ end
 
 
 % --- Executes just before Main is made visible.
-function Main_OpeningFcn(hObject, eventdata, handles, varargin)
+function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 % This function has no output args, see OutputFcn.
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -56,15 +56,22 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin)
 % Choose default command line output for Main
   handles.output = hObject;
   
+  % Get the settings
+  handles.settings = '';
+  handles.settings.loadID = 1;
+  handles.settings.wideID = 2;
+  handles.settings.scanID = 3;
+  handles.settings.xAxisID = 2;
+  handles.settings.yAxisID = 1;
+  handles.settings.zAxisID = 3;
+  handles.settings
+  
   % Set some defaults
   [rawLED.RedOn, throwaway.map, rawLED.alpha] = imread('LED-Red-On.png');
   rawLED.RedOff = imread('LED-Red-Off.png');
   rawLED.GreenOn = imread('LED-Green-On.png');
   rawLED.GreenOff = imread('LED-Green-Off.png');
   TCMLogo = 'TCMLogo.jpg';
-  handles.cameras.loadID = 1;
-  handles.cameras.wideID = 2;
-  handles.cameras.scanID = 3;
 
   % Make the utilities available throughout this GUI
   handles.images = Images();
@@ -109,7 +116,7 @@ end
 
 
 % --- Outputs from this function are returned to the command line.
-function varargout = Main_OutputFcn(hObject, eventdata, handles)
+function varargout = Main_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
 % varargout  cell array for returning output args (see VARARGOUT);
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -121,7 +128,7 @@ end
 
 
 % --- Executes on button press in SystemPower.
-function SystemPower_Callback(hObject, eventdata, handles)
+function SystemPower_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 % hObject    handle to SystemPower (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
@@ -140,19 +147,21 @@ end
 
 
 % --- Executes on button press in PositionSample.
-function PositionSample_Callback(hObject, eventdata, handles)
+function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 % hObject    handle to PositionSample (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
   % Open the PositionSample window.
   % PositionSample is modal, which means that Main will be blocked until
   % PositionSample closes.
-  PositionSample('Cameras', handles.cameras);
+  PositionSample('Cameras', handles.cameras,...
+                 'StageController', handles.stageController,...
+                 'Settings', handles.settings);
 end
 
 
 % --- Executes on button press in CaptureImage.
-function CaptureImage_Callback(hObject, eventdata, handles)
+function CaptureImage_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
 % hObject    handle to CaptureImage (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
@@ -160,7 +169,7 @@ end
 
 
 % --- Executes on button press in ToolsAndUtilities.
-function ToolsAndUtilities_Callback(hObject, eventdata, handles)
+function ToolsAndUtilities_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
 % hObject    handle to ToolsAndUtilities (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
@@ -168,7 +177,7 @@ end
 
 
 % --- Executes on button press in CollectData.
-function CollectData_Callback(hObject, eventdata, handles)
+function CollectData_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
 % hObject    handle to CollectData (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
@@ -176,7 +185,7 @@ end
 
 
 % --- Executes on button press in RunAnalysis.
-function RunAnalysis_Callback(hObject, eventdata, handles)
+function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
 % hObject    handle to RunAnalysis (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
@@ -201,13 +210,15 @@ function handles = CascadeActionPower(handles)
   
   % Connect to, or disconnect, from the hardware
   if handles.power
-    handles.cameras.load = videoinput('matrox', handles.cameras.loadID);
-    handles.cameras.wide = videoinput('matrox', handles.cameras.wideID);
-    handles.cameras.scan = videoinput('matrox', handles.cameras.scanID);
+    handles.cameras.load = videoinput('matrox', handles.settings.loadID);
+    handles.cameras.wide = videoinput('matrox', handles.settings.wideID);
+    handles.cameras.scan = videoinput('matrox', handles.settings.scanID);
+    handles.stageController = ESP300_Control(16, 'Stage Controller');
   else
     handles.cameras.load = '';
     handles.cameras.wide = '';
     handles.cameras.scan = '';
+    handles.stageController = '';
   end
   
   % Set the states of the GUI elements
