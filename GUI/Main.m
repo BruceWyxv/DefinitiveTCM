@@ -22,7 +22,7 @@ function varargout = Main(varargin)
 
 % Edit the above text to modify the response to help Main
 
-% Last Modified by GUIDE v2.5 23-Feb-2016 11:27:46
+% Last Modified by GUIDE v2.5 08-Mar-2016 17:38:07
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -57,21 +57,15 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.output = hObject;
   
   % Get the settings
-  handles.settings = '';
-  handles.settings.loadID = 1;
-  handles.settings.wideID = 2;
-  handles.settings.scanID = 3;
-  handles.settings.xAxisID = 2;
-  handles.settings.yAxisID = 1;
-  handles.settings.zAxisID = 3;
-  handles.settings
+  handles.settings = ini2struct('Resources/Settings.ini');
+  handles.oldSettings = handles.settings;
   
   % Set some defaults
-  [rawLED.RedOn, throwaway.map, rawLED.alpha] = imread('LED-Red-On.png');
-  rawLED.RedOff = imread('LED-Red-Off.png');
-  rawLED.GreenOn = imread('LED-Green-On.png');
-  rawLED.GreenOff = imread('LED-Green-Off.png');
-  TCMLogo = 'TCMLogo.jpg';
+  [rawLED.RedOn, throwaway.map, rawLED.alpha] = imread('Resources/Images/LED-Red-On.png');
+  rawLED.RedOff = imread('Resources/Images/LED-Red-Off.png');
+  rawLED.GreenOn = imread('Resources/Images/LED-Green-On.png');
+  rawLED.GreenOff = imread('Resources/Images/LED-Green-Off.png');
+  TCMLogo = 'Resources/Images/TCMLogo.jpg';
 
   % Make the utilities available throughout this GUI
   handles.images = Images();
@@ -191,42 +185,61 @@ function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
 % handles    structure with handles and user data (see GUIDATA)
 end
 
+
+% --- Executes when user attempts to close MainWindow.
+function MainWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to MainWindow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  % See if we need to save updated settings
+  if ~isequal(handles.settings, handles.oldSettings);
+    struct2ini('Resources/Settings.ini', handles.settings);
+    disp('Updated settings saved to ''Settings.ini''');
+  end
+
+% Hint: delete(hObject) closes the figure
+  delete(hObject);
+end
+
 function handles = CascadeActionPower(handles)
 % This function changes the states of GUI elements as needed by the current
 % power state.
+  try
+    % Connect to, or disconnect, from the hardware
+    if handles.power
+      handles.cameras.load = videoinput('matrox', handles.settings.loadID);
+      handles.cameras.wide = videoinput('matrox', handles.settings.wideID);
+      handles.cameras.scan = videoinput('matrox', handles.settings.scanID);
+      handles.stageController = ESP300_Control(16, 'Stage Controller');
+    else
+      handles.cameras.load = '';
+      handles.cameras.wide = '';
+      handles.cameras.scan = '';
+      handles.stageController = '';
+    end
 
-  % Get the power state
-  if handles.power
-    state = 'On';
-    antistate = 'Off';
-    set(handles.LEDOff, 'CData', handles.ScaledLED.RedOff);
-    set(handles.LEDOn, 'CData', handles.ScaledLED.GreenOn);
-  else
-    state = 'Off';
-    antistate = 'On';
-    set(handles.LEDOff, 'CData', handles.ScaledLED.RedOn);
-    set(handles.LEDOn, 'CData', handles.ScaledLED.GreenOff);
-  end
+    % Get the power state
+    if handles.power
+      state = 'On';
+      antistate = 'Off';
+      set(handles.LEDOff, 'CData', handles.ScaledLED.RedOff);
+      set(handles.LEDOn, 'CData', handles.ScaledLED.GreenOn);
+    else
+      state = 'Off';
+      antistate = 'On';
+      set(handles.LEDOff, 'CData', handles.ScaledLED.RedOn);
+      set(handles.LEDOn, 'CData', handles.ScaledLED.GreenOff);
+    end
   
-  % Connect to, or disconnect, from the hardware
-  if handles.power
-    handles.cameras.load = videoinput('matrox', handles.settings.loadID);
-    handles.cameras.wide = videoinput('matrox', handles.settings.wideID);
-    handles.cameras.scan = videoinput('matrox', handles.settings.scanID);
-    handles.stageController = ESP300_Control(16, 'Stage Controller');
-  else
-    handles.cameras.load = '';
-    handles.cameras.wide = '';
-    handles.cameras.scan = '';
-    handles.stageController = '';
+    % Set the states of the GUI elements
+    set(handles.TextOff, 'Enable', antistate);
+    set(handles.TextOn, 'Enable', state);
+    set(handles.CaptureImage, 'Enable', state);
+    set(handles.ToolsAndUtilities, 'Enable', state);
+    set(handles.PositionSample, 'Enable', state);
+    set(handles.CollectData, 'Enable', state);
+    set(handles.RunAnalysis, 'Enable', state);
+  catch me
+    warning('Main:PowerOn', me.message);
   end
-  
-  % Set the states of the GUI elements
-  set(handles.TextOff, 'Enable', antistate);
-  set(handles.TextOn, 'Enable', state);
-  set(handles.CaptureImage, 'Enable', state);
-  set(handles.ToolsAndUtilities, 'Enable', state);
-  set(handles.PositionSample, 'Enable', state);
-  set(handles.CollectData, 'Enable', state);
-  set(handles.RunAnalysis, 'Enable', state);
 end
