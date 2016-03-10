@@ -16,7 +16,7 @@ classdef ESP300_Control < GPIB_Interface
   end
   
   methods
-    function myself = ESP300_Control(address, name)
+    function myself = ESP300_Control(address, name, homeStages)
     % Construct this class and call the superclass constructor to initialze
     % the interface to the device
       if nargin == 1
@@ -29,11 +29,14 @@ classdef ESP300_Control < GPIB_Interface
       myself.activeStages = ~strcmp(strtrim(myself.Query([1 2 3],'ID')), 'Unknown'); % Block out inactive stages
       
       % Turn on the motors and home the stages
+      approveHome = 'ask';
       for i = 1:3
         if myself.activeStages(i)
           myself.TurnOnMotor(i);
-          myself.HomeAxis(i);
-          myself.WaitForAction(i);
+          if homeStages && (strcmp(approveHome, 'ask') || strcmp(approveHome, 'yes'))
+            approveHome = myself.HomeAxis(i, approveHome);
+            myself.WaitForAction(i);
+          end
         end
       end
     end
@@ -188,8 +191,21 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
-    function HomeAxis(myself, axis)
-    % Moves a stage tot he home position
+    function approveHome = HomeAxis(myself, axis, approveHome)
+    % Moves a stage to the home position
+      if strcmp(approveHome, 'ask')
+        answer = questdlg('Preparing to home the stages. Is this OK?', 'Warning', 'Yes', 'Abort', 'Yes');
+        
+        switch answer
+          case 'Yes'
+            approveHome = 'yes';
+            warndlg({'Ensure it is safe to home the stages.'; 'Click ''OK'' to proceed.'}, 'Check sample', 'modal');
+            
+          case 'Abort'
+            error('Stages will not be homed. Connection to the stage controller failed.');
+        end
+      end;
+      
       if isnumeric(axis)
         myself.Command(axis, 'OR');
       end

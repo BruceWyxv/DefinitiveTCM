@@ -204,8 +204,8 @@ end
 function handles = CascadeActionPower(handles)
 % This function changes the states of GUI elements as needed by the current
 % power state.
+  % Connect to, or disconnect, from the hardware
   try
-    % Connect to, or disconnect, from the hardware
     if handles.power
       handles.cameras.load = videoinput('matrox', handles.settings.loadID);
       handles.cameras.wide = videoinput('matrox', handles.settings.wideID);
@@ -217,7 +217,12 @@ function handles = CascadeActionPower(handles)
       handles.cameras.scan = '';
       handles.stageController = '';
     end
+  catch me
+    warning('Main:PowerOn', me.message);
+  end
 
+  % Set the GUI state
+  try
     % Get the power state
     if handles.power
       state = 'On';

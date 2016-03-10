@@ -22,7 +22,7 @@ function varargout = PositionSample(varargin)
 
 % Edit the above text to modify the response to help PositionSample
 
-% Last Modified by GUIDE v2.5 08-Mar-2016 10:39:28
+% Last Modified by GUIDE v2.5 10-Mar-2016 11:44:10
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -79,7 +79,7 @@ function PositionSample_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<I
   end
   
   % Set some parameters
-  axes(handles.CameraViewFrame)
+  axes(handles.CameraView)
   handles.CameraView = image(zeros(640, 480, 3));
   preview(handles.cameras.load, handles.CameraView);
   axis image; % Preserve the aspect ratio
@@ -111,15 +111,15 @@ function PositionSample_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<I
     @(~, ~) UpdateEdit2Slider(handles.ZEdit, handles.settings.zAxisID, handles.ZSlider, handles.StageRanges(3,:), handles));
   
   % Set the speeds and motor controls
-  set(handles.Moderate, 'Value', 1);
-  handles.MotorSpeed = 'Moderate';
-  handles.Speeds = [0.01, 0.05;...
-                    0.02, 0.1;...
-                    0.04, 0.2];
+  set(handles.Medium, 'Value', 1);
+  handles.StepSize = 'Moderate';
+  handles.StepSizeArray = [0.01, 0.05;...
+                           0.02, 0.1;...
+                           0.04, 0.2];
   set(handles.ComputerControl, 'Value', 1);
   handles.ComputerControl = true;
   UpdateControlSystem(handles);
-  handles = UpdateMotorSpeedGroup(handles);
+  handles = UpdateStepSizeGroup(handles);
 
   % Update handles structure
   guidata(hObject, handles);
@@ -168,12 +168,12 @@ function AutoMoveStage_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-% --- Executes when selected object is changed in MotorSpeedGroup.
-function MotorSpeedGroup_SelectionChangedFcn(hObject, eventdata, handles) %#ok<DEFNU>
-% hObject    handle to the selected object in MotorSpeedGroup 
+% --- Executes when selected object is changed in StepSizeGroup.
+function StepSizeGroup_SelectionChangedFcn(hObject, eventdata, handles) %#ok<DEFNU>
+% hObject    handle to the selected object in StepSizeGroup 
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  handles = UpdateMotorSpeedGroup(handles, eventdata);
+  handles = UpdateStepSizeGroup(handles, eventdata);
   guidata(hObject, handles);
 end
 
@@ -444,6 +444,29 @@ function JoystickControl_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
+% --------------------------------------------------------------------
+function SaveImage_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to SaveImage (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+end
+
+
+function RecordVideo_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to RecordVideo (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+end
+
+
+function CameraViewContextMenu_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to CameraViewContextMenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+end
+
+
+% --------------------------------------------------------------------
 function SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback)
 % Check the range of the new value and sanitize if it is out of bounds
   min = get(slider, 'Min');
@@ -505,15 +528,15 @@ end
 function jog = GetFastJog(slider, handles)
 % Jog the stage left as if the slider had moved a full thumb's distance
   % Calculate the jog distance
-  switch handles.MotorSpeed
+  switch handles.StepSize
     case 'Slow'
-      sliderStep = handles.Speeds(1,:);
+      sliderStep = handles.StepSizeArray(1,:);
 
     case 'Moderate'
-      sliderStep = handles.Speeds(2,:);
+      sliderStep = handles.StepSizeArray(2,:);
 
     case 'Fast'
-      sliderStep = handles.Speeds(3,:);
+      sliderStep = handles.StepSizeArray(3,:);
   end
   speed = sliderStep(2);
   range = get(slider, 'Max') - get(slider, 'Min');
@@ -524,15 +547,15 @@ end
 function jog = GetModerateJog(slider, handles)
 % Jog the stage left as if the slider had moved a full thumb's distance
   % Calculate the jog distance
-  switch handles.MotorSpeed
+  switch handles.StepSize
     case 'Slow'
-      sliderStep = handles.Speeds(1,:);
+      sliderStep = handles.StepSizeArray(1,:);
 
     case 'Moderate'
-      sliderStep = handles.Speeds(2,:);
+      sliderStep = handles.StepSizeArray(2,:);
 
     case 'Fast'
-      sliderStep = handles.Speeds(3,:);
+      sliderStep = handles.StepSizeArray(3,:);
   end
   speed = sliderStep(1);
   range = get(slider, 'Max') - get(slider, 'Min');
@@ -543,15 +566,15 @@ end
 function jog = GetSlowJog(slider, handles)
 % Jog the stage left as if the slider had moved a full thumb's distance
   % Calculate the jog distance
-  switch handles.MotorSpeed
+  switch handles.StepSize
     case 'Slow'
-      sliderStep = handles.Speeds(1,:);
+      sliderStep = handles.StepSizeArray(1,:);
 
     case 'Moderate'
-      sliderStep = handles.Speeds(2,:);
+      sliderStep = handles.StepSizeArray(2,:);
 
     case 'Fast'
-      sliderStep = handles.Speeds(3,:);
+      sliderStep = handles.StepSizeArray(3,:);
   end
   speed = sliderStep(1) / 5.0;
   range = get(slider, 'Max') - get(slider, 'Min');
@@ -678,7 +701,7 @@ function UpdateEdit2Slider(edit, axis, slider, stageRange, handles)
 end
 
 
-function handles = UpdateMotorSpeedGroup(handles, eventdata)
+function handles = UpdateStepSizeGroup(handles, eventdata)
 % Update the controls related to the motor speed
 
   % Check to see if a radio button selection triggered the event. If so,
@@ -686,26 +709,26 @@ function handles = UpdateMotorSpeedGroup(handles, eventdata)
   if nargin == 2
     % Sets the relative size of a single step
     switch get(eventdata.NewValue, 'Tag')
-      case 'Slow'
-        handles.MotorSpeed = 'Slow';
+      case 'Small'
+        handles.StepSize = 'Small';
 
-      case 'Moderate'
-        handles.MotorSpeed = 'Moderate';
+      case 'Medium'
+        handles.StepSize = 'Medium';
 
-      case 'Fast'
-        handles.MotorSpeed = 'Fast';
+      case 'Large'
+        handles.StepSize = 'Large';
     end
   end
   
-  switch handles.MotorSpeed
-    case 'Slow'
-      sliderStep = handles.Speeds(1,:);
+  switch handles.StepSize
+    case 'Small'
+      sliderStep = handles.StepSizeArray(1,:);
       
-    case 'Moderate'
-      sliderStep = handles.Speeds(2,:);
+    case 'Medium'
+      sliderStep = handles.StepSizeArray(2,:);
       
-    case 'Fast'
-      sliderStep = handles.Speeds(3,:);
+    case 'Large'
+      sliderStep = handles.StepSizeArray(3,:);
   end
   
   set(handles.XSlider, 'SliderStep', sliderStep);
