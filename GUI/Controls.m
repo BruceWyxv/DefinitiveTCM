@@ -1,18 +1,18 @@
-function varargout = PositionSample(varargin)
-%POSITIONSAMPLE M-file for PositionSample.fig
-%      POSITIONSAMPLE, by itself, creates a new POSITIONSAMPLE or raises the existing
+function varargout = Controls(varargin)
+%CONTROLS M-file for Controls.fig
+%      CONTROLS, by itself, creates a new CONTROLS or raises the existing
 %      singleton*.
 %
-%      H = POSITIONSAMPLE returns the handle to a new POSITIONSAMPLE or the handle to
+%      H = CONTROLS returns the handle to a new CONTROLS or the handle to
 %      the existing singleton*.
 %
-%      POSITIONSAMPLE('Property','Value',...) creates a new POSITIONSAMPLE using the
+%      CONTROLS('Property','Value',...) creates a new CONTROLS using the
 %      given property value pairs. Unrecognized properties are passed via
-%      varargin to PositionSample_OpeningFcn.  This calling syntax produces a
+%      varargin to Controls_OpeningFcn.  This calling syntax produces a
 %      warning when there is an existing singleton*.
 %
-%      POSITIONSAMPLE('CALLBACK') and POSITIONSAMPLE('CALLBACK',hObject,...) call the
-%      local function named CALLBACK in POSITIONSAMPLE.M with the given input
+%      CONTROLS('CALLBACK') and CONTROLS('CALLBACK',hObject,...) call the
+%      local function named CALLBACK in CONTROLS.M with the given input
 %      arguments.
 %
 %      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
@@ -22,14 +22,14 @@ function varargout = PositionSample(varargin)
 
 % Edit the above text to modify the response to help PositionSample
 
-% Last Modified by GUIDE v2.5 10-Mar-2016 11:44:10
+% Last Modified by GUIDE v2.5 15-Mar-2016 12:29:38
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
   gui_State = struct('gui_Name',       mfilename, ...
                      'gui_Singleton',  gui_Singleton, ...
-                     'gui_OpeningFcn', @PositionSample_OpeningFcn, ...
-                     'gui_OutputFcn',  @PositionSample_OutputFcn, ...
+                     'gui_OpeningFcn', @Controls_OpeningFcn, ...
+                     'gui_OutputFcn',  @Controls_OutputFcn, ...
                      'gui_LayoutFcn',  [], ...
                      'gui_Callback',   []);
   if nargin && ischar(varargin{1})
@@ -46,7 +46,7 @@ end
 
 
 % --- Executes just before PositionSample is made visible.
-function PositionSample_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
+function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 % This function has no output args, see OutputFcn.
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -127,13 +127,13 @@ end
 
 
 % --- Outputs from this function are returned to the command line.
-function varargout = PositionSample_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
+function varargout = Controls_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
 % varargout  cell array for returning output args (see VARARGOUT);
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Get default command line output from handles structure
+  % Get default command line output from handles structure
   varargout{1} = handles.output;
 end
 
@@ -148,12 +148,20 @@ function CameraSelectionGroup_SelectionChangedFcn(hObject, eventdata, handles) %
 end
 
 
+% --- Executes when selected object is changed in ControlSystem.
+function ControlSystem_SelectionChangedFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to the selected object in ControlSystem 
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+end
+
+
 % --- Executes on button press in Done.
 function Done_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to Done (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  close(handles.PositionSampleWindow);
+  close(handles.ControlsWindow);
 end
 
 
