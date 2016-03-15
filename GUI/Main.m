@@ -60,6 +60,9 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.settings = ini2struct('Resources/Settings.ini');
   handles.oldSettings = handles.settings;
   
+  % Get the GUI add-ons
+  handles.PositionSampleGUIAddOn = open('Controls_SamplePosition.fig');
+  
   % Set some defaults
   [rawLED.RedOn, throwaway.map, rawLED.alpha] = imread('Resources/Images/LED-Red-On.png');
   rawLED.RedOff = imread('Resources/Images/LED-Red-Off.png');
@@ -145,12 +148,13 @@ function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 % hObject    handle to PositionSample (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  % Open the PositionSample window.
-  % PositionSample is modal, which means that Main will be blocked until
-  % PositionSample closes.
-  PositionSample('Cameras', handles.cameras,...
-                 'StageController', handles.stageController,...
-                 'Settings', handles.settings);
+  % Open the Controls window with the PositionSample add-on
+  % Controls is modal, which means that Main will be blocked until
+  % Controls closes.
+  Controls('Cameras', handles.cameras,...
+           'StageController', handles.stageController,...
+           'Settings', handles.settings,...
+           'AddOn', handles.PositionSampleGUIAddOn);
 end
 
 

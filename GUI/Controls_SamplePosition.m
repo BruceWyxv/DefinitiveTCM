@@ -45,7 +45,6 @@ function varargout = Controls_SamplePosition(varargin)
 end
 
 
-% --- Executes just before Controls_SamplePosition is made visible.
 function Controls_SamplePosition_OpeningFcn(hObject, eventdata, handles, varargin)
 % This function has no output args, see OutputFcn.
 % hObject    handle to figure
@@ -62,8 +61,7 @@ function Controls_SamplePosition_OpeningFcn(hObject, eventdata, handles, varargi
 end
 
 
-% --- Outputs from this function are returned to the command line.
-function varargout = Controls_SamplePosition_OutputFcn(hObject, eventdata, handles)
+function varargout = Controls_SamplePosition_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 % varargout  cell array for returning output args (see VARARGOUT);
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -74,53 +72,92 @@ function varargout = Controls_SamplePosition_OutputFcn(hObject, eventdata, handl
 end
 
 
-% --- Executes when selected object is changed in CameraSelectionGroup.
-function CameraSelectionGroup_SelectionChangedFcn(hObject, eventdata, handles)
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+function CameraSelectionGroup_SelectionChangedFcn(hObject, eventdata, handles) %#ok<DEFNU>
 % hObject    handle to the selected object in CameraSelectionGroup 
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  handles = UpdateCameraSelectionGroup(eventdata, handles);
+  guidata(hObject, handles);
 end
 
 
-% --- Executes on button press in LinkStageToCamera.
-function LinkStageToCamera_Callback(hObject, eventdata, handles)
-% hObject    handle to LinkStageToCamera (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-  % Hint: get(hObject,'Value') returns toggle state of LinkStageToCamera
-end
-
-
-% --- Executes on button press in MoveStageToCamera.
-function MoveStageToCamera_Callback(hObject, eventdata, handles)
-% hObject    handle to MoveStageToCamera (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-end
-
-
-% --- Executes when selected object is changed in StageOptionsGroup.
-function StageOptionsGroup_SelectionChangedFcn(hObject, eventdata, handles)
-% hObject    handle to the selected object in StageOptionsGroup 
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-end
-
-
-% --- Executes on button press in LinkStageToCameraCheckbox.
-function LinkStageToCameraCheckbox_Callback(hObject, eventdata, handles)
+function LinkStageToCameraCheckbox_Callback(hObject, eventdata, handles) %#ok<DEFNU>
 % hObject    handle to LinkStageToCameraCheckbox (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
   % Hint: get(hObject,'Value') returns toggle state of LinkStageToCameraCheckbox
+  UpdateCameraSelectionGroup(handles);
 end
 
 
-% --- Executes on button press in MoveStageToCameraButton.
-function MoveStageToCameraButton_Callback(hObject, eventdata, handles)
+function MoveStageToCameraButton_Callback(hObject, eventdata, handles) %#ok<DEFNU>
 % hObject    handle to MoveStageToCameraButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  handles = MoveStageToCamera(handles);
+  guidata(hObject, handles);
+end
+
+
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+function handles = MoveStageToCamera(handles)
+  % First, open a modal progress bar while we are moving the stage. We
+  % don't want the user to be able to change anything until the stage
+  % movement is complete. Also, disable the close functionality (a user
+  % should not be able to prematurely close the window while the process is
+  % still completing.
+  
+  % Get the current stage positions
+  current = [str2double(get(handles.XEdit, 'String')) ...
+             str2double(get(handles.YEdit, 'String')) ...
+             str2double(get(handles.ZEdit, 'String'))];
+  % Get the new origin and calculate the new position
+  cameraOrigin = GetOrigin(handles.CameraPosition, handles.settings.PositionLocations);
+  new = current + cameraOrigin;
+  % Move the axis, showing a progress bar
+  handles.stageController.MoveAxis(handles.settings.xAxisID, new(1), true);
+  handles.stageController.MoveAxis(handles.settings.yAxisID, new(2), true);
+  handles.stageController.MoveAxis(handles.settings.zAxisID, new(3), true);
+
+  % The stage should now be in the camera's field-of-view
+  handles.StagePosition = handles.CameraPosition;
+end
+
+
+function handles = UpdateCameraSelectionGroup(handles, eventdata)
+% Processes all the commands associated with the camera selection group
+  % Check to see if a radio button selection triggered the event. If so,
+  % then select the camera to show in the viewer
+  if nargin == 2
+    % Select the camera
+    switch get(eventdata.NewValue, 'Tag')
+      case 'SampleLoadPositionRadio'
+        handles.CameraPosition = 'SampleLoading';
+
+      case 'WideImagePositionRadio'
+        handles.CameraPosition = 'WideImage';
+
+      case 'ScanObjectivePositionRadio'
+        handles.CameraPosition = 'ScanningObjective';
+    end
+    
+    % Check to see if we need to reposition the stage
+    if get(handles.MoveStageToCameraButton, 'Value') == 1 && ~strcmp(handles.CameraPosition, 'SampleLoading') && ~strcmp(handles.CameraPosition, handles.StagePosition)
+      handles = MoveStageToCamera(handles);
+    end
+  else
+    % The checkbox state was changed
+    if get(handles.LinkStageToCameraCheckbox, 'Value') == 1
+      state = 'off';
+    else
+      state = 'on';
+    end
+    set(handles.MoveStageToCameraButton, 'Enable', state);
+  end
 end

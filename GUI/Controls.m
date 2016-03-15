@@ -22,7 +22,7 @@ function varargout = Controls(varargin)
 
 % Edit the above text to modify the response to help PositionSample
 
-% Last Modified by GUIDE v2.5 15-Mar-2016 12:29:38
+% Last Modified by GUIDE v2.5 15-Mar-2016 15:32:49
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -64,6 +64,7 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     parser.addParameter('cameras', '', @isstruct);
     parser.addParameter('stageController', '', @(x) isa(x, 'ESP300_Control'));
     parser.addParameter('settings', '', @isstruct);
+    parser.addParameter('addOn', open('Controls_Template.fig'), @ishandle);
     % Parse the input arguments
     parser.KeepUnmatched = true;
     try
@@ -75,44 +76,40 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     handles.cameras = parser.Results.cameras;
     handles.stageController = parser.Results.stageController;
     handles.settings = parser.Results.settings;
-    handles.settings
+    handles.addOn = parser.Results.addOn;
   end
+  
+  % Load the add-on
+  handles = LoadAddOn(hObject, handles);
   
   % Set some parameters
   axes(handles.CameraView)
   handles.CameraView = image(zeros(640, 480, 3));
   preview(handles.cameras.load, handles.CameraView);
   axis image; % Preserve the aspect ratio
-  % TODO Detect where the sample is and choose the appropriate camera - BEGIN
-  set(handles.SampleLoadingCamera, 'Value', 1);
-  handles.CameraPosition = 'SampleLoading';
-  handles.StagePosition = handles.CameraPosition;
-  % TODO Detect where the sample is and choose the appropriate camera - END
-  set(handles.AutoMoveStage, 'Value', 1);
-  handles = UpdateCameraSelectionGroup(handles);
-  handles.StageRanges = [-10, 10;...
-                         -10, 10;...
-                         -2, 2];
+  handles.StageRanges = [handles.settings.SampleBoundaries.x ...
+                         handles.settings.SampleBoundaries.y ...
+                         handles.settings.SampleBoundaries.z];
   set(handles.XEdit, 'String', '0');
   set(handles.YEdit, 'String', '0');
   set(handles.ZEdit, 'String', '0');
-  UpdateEdit2Slider(handles.XEdit, handles.settings.xAxisID, handles.XSlider, handles.StageRanges(1,:), handles);
-  UpdateEdit2Slider(handles.YEdit, handles.settings.yAxisID, handles.YSlider, handles.StageRanges(2,:), handles);
-  UpdateEdit2Slider(handles.ZEdit, handles.settings.zAxisID, handles.ZSlider, handles.StageRanges(3,:), handles);
+  UpdateEdit2Slider(handles.XEdit, 1, handles.XSlider, handles.StageRanges(1), handles);
+  UpdateEdit2Slider(handles.YEdit, 2, handles.YSlider, handles.StageRanges(2), handles);
+  UpdateEdit2Slider(handles.ZEdit, 3, handles.ZSlider, handles.StageRanges(3), handles);
   
   % Add listners so that dragging the sliders also updates the edit boxes,
   % but do not move the stages yet. Wait until the user has released the
   % cursor before actually moving the stages.
   addlistener(handles.XSlider, 'Value', 'PreSet',...
-    @(~, ~) UpdateEdit2Slider(handles.XEdit, handles.settings.xAxisID, handles.XSlider, handles.StageRanges(1,:), handles));
+    @(~, ~) TrackSlider2Edit(handles.XSlider, handles.XEdit, handles.StageRanges(1)));
   addlistener(handles.YSlider, 'Value', 'PreSet',...
-    @(~, ~) UpdateEdit2Slider(handles.YEdit, handles.settings.yAxisID, handles.YSlider, handles.StageRanges(2,:), handles));
+    @(~, ~) TrackSlider2Edit(handles.YSlider, handles.YEdit, handles.StageRanges(2)));
   addlistener(handles.ZSlider, 'Value', 'PreSet',...
-    @(~, ~) UpdateEdit2Slider(handles.ZEdit, handles.settings.zAxisID, handles.ZSlider, handles.StageRanges(3,:), handles));
+    @(~, ~) TrackSlider2Edit(handles.ZSlider, handles.ZEdit, handles.StageRanges(3)));
   
   % Set the speeds and motor controls
   set(handles.Medium, 'Value', 1);
-  handles.StepSize = 'Moderate';
+  handles.StepSize = 'Medium';
   handles.StepSizeArray = [0.01, 0.05;...
                            0.02, 0.1;...
                            0.04, 0.2];
@@ -138,297 +135,16 @@ function varargout = Controls_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
 end
 
 
-% --- Executes when selected object is changed in CameraSelectionGroup.
-function CameraSelectionGroup_SelectionChangedFcn(hObject, eventdata, handles) %#ok<DEFNU>
-% hObject    handle to the selected object in CameraSelectionGroup 
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  handles = UpdateCameraSelectionGroup(handles, eventdata);
-  guidata(hObject, handles);
-end
-
-
-% --- Executes when selected object is changed in ControlSystem.
-function ControlSystem_SelectionChangedFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to the selected object in ControlSystem 
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+function CameraViewContextMenu_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to CameraViewContextMenu (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 end
 
 
-% --- Executes on button press in Done.
-function Done_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to Done (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  close(handles.ControlsWindow);
-end
-
-
-% --- Executes on button press in AutoMoveStage.
-function AutoMoveStage_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to AutoMoveStage (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of AutoMoveStage
-  UpdateCameraSelectionGroup(handles);
-end
-
-
-% --- Executes when selected object is changed in StepSizeGroup.
-function StepSizeGroup_SelectionChangedFcn(hObject, eventdata, handles) %#ok<DEFNU>
-% hObject    handle to the selected object in StepSizeGroup 
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  handles = UpdateStepSizeGroup(handles, eventdata);
-  guidata(hObject, handles);
-end
-
-
-% --- Executes on button press in RepositionStageButton.
-function RepositionStageButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to RepositionStageButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  % Move the stage to the camera position
-  handles = MoveStageToCamera(handles);
-  guidata(hObject, handles);
-end
-
-
-function XEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to XEdit (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of XEdit as text
-%        str2double(get(hObject,'String')) returns contents of XEdit as a double
-  UpdateEdit2Slider(hObject, handles.settings.xAxisID, handles.XSlider, handles.StageRanges(1,:), handles);
-end
-
-
-function YEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to YEdit (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of YEdit as text
-%        str2double(get(hObject,'String')) returns contents of YEdit as a double
-  UpdateEdit2Slider(hObject, handles.settings.yAxisID, handles.YSlider, handles.StageRanges(2,:), handles);
-end
-
-
-function ZEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to ZEdit (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of ZEdit as text
-%        str2double(get(hObject,'String')) returns contents of ZEdit as a double
-  UpdateEdit2Slider(hObject, handles.settings.zAxisID, handles.ZSlider, handles.StageRanges(3,:), handles);
-end
-
-
-% --- Executes on slider movement.
-function XSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
-% hObject    handle to XSlider (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'Value') returns position of slider
-%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-  UpdateSlider2Edit(hObject, handles.settings.xAxisID, handles.XEdit, handles.StageRanges(1,:), handles);
-end
-
-
-% --- Executes on slider movement.
-function YSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
-% hObject    handle to YSlider (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'Value') returns position of slider
-%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-  UpdateSlider2Edit(hObject, handles.settings.yAxisID, handles.YEdit, handles.StageRanges(2,:), handles);
-end
-
-
-% --- Executes on slider movement.
-function ZSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
-% hObject    handle to ZSlider (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'Value') returns position of slider
-%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-  UpdateSlider2Edit(hObject, handles.settings.zAxisID, handles.ZEdit, handles.StageRanges(3,:), handles);
-end
-
-
-% --- Executes on button press in XLeftFast.
-function XLeftFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to XLeftFast (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogLeftFast(handles.XSlider, eventdata, handles, @XSlider_Callback);
-end
-
-
-% --- Executes on button press in XLeftModerate.
-function XLeftModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to XLeftModerate (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogLeftModerate(handles.XSlider, eventdata, handles, @XSlider_Callback);
-end
-
-
-% --- Executes on button press in XLeftSlow.
-function XLeftSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to XLeftSlow (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogLeftSlow(handles.XSlider, eventdata, handles, @XSlider_Callback);
-end
-
-
-% --- Executes on button press in ZLeftFast.
-function ZLeftFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to ZLeftFast (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogLeftFast(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
-end
-
-
-% --- Executes on button press in ZLeftModerate.
-function ZLeftModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to ZLeftModerate (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogLeftModerate(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
-end
-
-
-% --- Executes on button press in ZLeftSlow.
-function ZLeftSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to ZLeftSlow (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogLeftSlow(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
-end
-
-
-% --- Executes on button press in ZRightFast.
-function ZRightFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to ZRightFast (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogRightFast(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
-end
-
-
-% --- Executes on button press in ZRightModerate.
-function ZRightModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to ZRightModerate (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogRightModerate(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
-end
-
-
-% --- Executes on button press in ZRightSlow.
-function ZRightSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to ZRightSlow (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogRightSlow(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
-end
-
-
-% --- Executes on button press in YLeftFast.
-function YLeftFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to YLeftFast (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogLeftFast(handles.YSlider, eventdata, handles, @YSlider_Callback);
-end
-
-
-% --- Executes on button press in YLeftModerate.
-function YLeftModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to YLeftModerate (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogLeftModerate(handles.YSlider, eventdata, handles, @YSlider_Callback);
-end
-
-
-% --- Executes on button press in YLeftSlow.
-function YLeftSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to YLeftSlow (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogLeftSlow(handles.YSlider, eventdata, handles, @YSlider_Callback);
-end
-
-
-% --- Executes on button press in YRightFast.
-function YRightFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to YRightFast (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogRightFast(handles.YSlider, eventdata, handles, @YSlider_Callback);
-end
-
-
-% --- Executes on button press in YRightModerate.
-function YRightModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to YRightModerate (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogRightModerate(handles.YSlider, eventdata, handles, @YSlider_Callback);
-end
-
-
-% --- Executes on button press in YRightSlow.
-function YRightSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to YRightSlow (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogRightSlow(handles.YSlider, eventdata, handles, @YSlider_Callback);
-end
-
-
-% --- Executes on button press in XRightFast.
-function XRightFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to XRightFast (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogRightFast(handles.XSlider, eventdata, handles, @XSlider_Callback);
-end
-
-
-% --- Executes on button press in XRightModerate.
-function XRightModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to XRightModerate (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogRightModerate(handles.XSlider, eventdata, handles, @XSlider_Callback);
-end
-
-
-% --- Executes on button press in XRightSlow.
-function XRightSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to XRightSlow (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-   JogRightSlow(handles.XSlider, eventdata, handles, @XSlider_Callback);
-end
-
-
-% --- Executes on button press in ComputerControl.
 function ComputerControl_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to ComputerControl (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -440,7 +156,21 @@ function ComputerControl_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-% --- Executes on button press in JoystickControl.
+function ControlSystem_SelectionChangedFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to the selected object in ControlSystem 
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+end
+
+
+function Done_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to Done (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  close(handles.ControlsWindow);
+end
+
+
 function JoystickControl_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to JoystickControl (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -452,14 +182,6 @@ function JoystickControl_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-% --------------------------------------------------------------------
-function SaveImage_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to SaveImage (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-end
-
-
 function RecordVideo_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to RecordVideo (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -467,14 +189,404 @@ function RecordVideo_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 end
 
 
-function CameraViewContextMenu_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to CameraViewContextMenu (see GCBO)
+function SaveImage_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to SaveImage (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 end
 
 
+function StepSizeGroup_SelectionChangedFcn(hObject, eventdata, handles) %#ok<DEFNU>
+% hObject    handle to the selected object in StepSizeGroup 
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  handles = UpdateStepSizeGroup(handles, eventdata);
+  guidata(hObject, handles);
+end
+
+
+function XEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to XEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of XEdit as text
+%        str2double(get(hObject,'String')) returns contents of XEdit as a double
+  UpdateEdit2Slider(hObject, 1, handles.XSlider, handles.StageRanges(1), handles);
+end
+
+
+function XLeftFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to XLeftFast (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepLeftLarge(handles.XSlider, eventdata, handles, @XSlider_Callback);
+end
+
+
+function XLeftModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to XLeftModerate (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepLeftMedium(handles.XSlider, eventdata, handles, @XSlider_Callback);
+end
+
+
+function XLeftSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to XLeftSlow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepLeftSmall(handles.XSlider, eventdata, handles, @XSlider_Callback);
+end
+
+
+function XRightFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to XRightFast (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepRightLarge(handles.XSlider, eventdata, handles, @XSlider_Callback);
+end
+
+
+function XRightModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to XRightModerate (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepRightMedium(handles.XSlider, eventdata, handles, @XSlider_Callback);
+end
+
+
+function XRightSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to XRightSlow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepRightSmall(handles.XSlider, eventdata, handles, @XSlider_Callback);
+end
+
+
+function XSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
+% hObject    handle to XSlider (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'Value') returns position of slider
+%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+  UpdateSlider2Edit(hObject, 1, handles.XEdit, handles.StageRanges(1), handles);
+end
+
+
+function YEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to YEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of YEdit as text
+%        str2double(get(hObject,'String')) returns contents of YEdit as a double
+  UpdateEdit2Slider(hObject, 2, handles.YSlider, handles.StageRanges(2), handles);
+end
+
+
+function YLeftFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to YLeftFast (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepLeftLarge(handles.YSlider, eventdata, handles, @YSlider_Callback);
+end
+
+
+function YLeftModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to YLeftModerate (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepLeftMedium(handles.YSlider, eventdata, handles, @YSlider_Callback);
+end
+
+
+function YLeftSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to YLeftSlow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepLeftSmall(handles.YSlider, eventdata, handles, @YSlider_Callback);
+end
+
+
+function YRightFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to YRightFast (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepRightLarge(handles.YSlider, eventdata, handles, @YSlider_Callback);
+end
+
+
+function YRightModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to YRightModerate (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepRightMedium(handles.YSlider, eventdata, handles, @YSlider_Callback);
+end
+
+
+function YRightSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to YRightSlow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepRightSmall(handles.YSlider, eventdata, handles, @YSlider_Callback);
+end
+
+
+function YSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
+% hObject    handle to YSlider (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'Value') returns position of slider
+%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+  UpdateSlider2Edit(hObject, 2, handles.YEdit, handles.StageRanges(2), handles);
+end
+
+
+function ZEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ZEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of ZEdit as text
+%        str2double(get(hObject,'String')) returns contents of ZEdit as a double
+  UpdateEdit2Slider(hObject, 3, handles.ZSlider, handles.StageRanges(3), handles);
+end
+
+
+function ZLeftFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ZLeftFast (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepLeftLarge(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
+end
+
+
+function ZLeftModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ZLeftModerate (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepLeftMedium(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
+end
+
+
+function ZLeftSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ZLeftSlow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepLeftSmall(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
+end
+
+
+function ZRightFast_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ZRightFast (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepRightLarge(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
+end
+
+
+function ZRightModerate_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ZRightModerate (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepRightMedium(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
+end
+
+
+function ZRightSlow_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ZRightSlow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+   StepRightSmall(handles.ZSlider, eventdata, handles, @ZSlider_Callback);
+end
+
+
+function ZSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
+% hObject    handle to ZSlider (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'Value') returns position of slider
+%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+  UpdateSlider2Edit(hObject, 3, handles.ZEdit, handles.StageRanges(3), handles);
+end
+
+
 % --------------------------------------------------------------------
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+function stagePosition = ConvertSlider2Position(slider, stageRange)
+% Converts the slider position to stage position
+  sliderPosition = get(slider, 'Value');
+  sliderMin = get(slider, 'Min');
+  sliderMax = get(slider, 'Max');
+  sliderRatio = (sliderPosition - sliderMin) / (sliderMax - sliderMin);
+  stagePosition = sliderRatio * stageRange;
+end
+
+
+function step = GetLargeStep(slider, handles)
+% Jog the stage left as if the slider had moved a full thumb's distance
+  % Calculate the jog distance
+  switch handles.StepSize
+    case 'Small'
+      sliderStep = handles.StepSizeArray(1,:);
+
+    case 'Medium'
+      sliderStep = handles.StepSizeArray(2,:);
+
+    case 'Large'
+      sliderStep = handles.StepSizeArray(3,:);
+  end
+  speed = sliderStep(2);
+  range = get(slider, 'Max') - get(slider, 'Min');
+  step = range * speed;
+end
+
+
+function step = GetMediumStep(slider, handles)
+% Jog the stage left as if the slider had moved a full thumb's distance
+  % Calculate the jog distance
+  switch handles.StepSize
+    case 'Small'
+      sliderStep = handles.StepSizeArray(1,:);
+
+    case 'Medium'
+      sliderStep = handles.StepSizeArray(2,:);
+
+    case 'Large'
+      sliderStep = handles.StepSizeArray(3,:);
+  end
+  speed = sliderStep(1);
+  range = get(slider, 'Max') - get(slider, 'Min');
+  step = range * speed;
+end
+
+
+function origin = GetOrigin(position, positionLocations)
+% Fetches the origin of the position
+  switch position
+    case 'SampleLoading';
+      origin = positionLocations.load;
+      
+    case 'CoarsePositioning';
+      origin = positionLocations.wide;
+
+    case 'ScanningObjective';
+      origin = positionLocations.scan;
+  end
+end
+
+
+function step = GetSmallStep(slider, handles)
+% Jog the stage left as if the slider had moved a full thumb's distance
+  % Calculate the jog distance
+  switch handles.StepSize
+    case 'Small'
+      sliderStep = handles.StepSizeArray(1,:);
+
+    case 'Medium'
+      sliderStep = handles.StepSizeArray(2,:);
+
+    case 'Large'
+      sliderStep = handles.StepSizeArray(3,:);
+  end
+  speed = sliderStep(1) / 5.0;
+  range = get(slider, 'Max') - get(slider, 'Min');
+  step = range * speed;
+end
+
+function handles = LoadAddOn(figure, handles)
+% Load the add on specified by handles.addOn
+  controls = handles.addOn.Children;
+  for i = 1:length(controls)
+    % Get the properties
+    control = controls(i);
+    children = control.Children;
+    type = control.Type;
+    % Remove fields that will cause errors
+    controlStruct = PurgeControlStruct(get(control));
+    switch type
+      case 'uibuttongroup'
+        group = uibuttongroup(figure, controlStruct);
+        handles.(controlStruct.Tag) = group;
+        handles = LoadControls(handles, group, children);
+        
+      case 'uicontrol'
+        handles.(controlStruct.Tag) = LoadControls(handles, figure, controlStruct);
+    end
+  end
+  
+  % Extract and set the name
+  name = handles.addOn.Name;
+  set(figure, 'Name', name);
+  
+  % TODO Detect where the sample is and choose the appropriate camera - BEGIN
+  set(handles.SampleLoadPositionRadio, 'Value', 1);
+  handles.CameraPosition = 'SampleLoading';
+  handles.StagePosition = handles.CameraPosition;
+  % TODO Detect where the sample is and choose the appropriate camera - END
+  set(handles.LinkStageToCameraCheckbox, 'Value', 1);
+  handles = UpdateCameraSelectionGroup(handles);
+end
+
+  function handles = LoadControls(handles, parent, controls)
+  % Load an array of controls
+    for i = 1:length(controls)
+      controlStruct = PurgeControlStruct(get(controls(i)));
+      handles.(controlStruct.Tag) = uicontrol(parent, controlStruct);
+    end
+  end
+
+
+function MoveStageToSliderPosition(axis, slider, handles)
+% Moves the provided axis to the position specified by the slider control
+  switch handles.CameraPosition
+    case 'SampleLoading';
+      origin = handles.settings.PositionLocations.load(axis);
+      
+    case 'CoarsePositioning';
+      origin = handles.settings.PositionLocations.wide(axis);
+
+    case 'ScanningObjective';
+      origin = handles.settings.PositionLocations.scan(axis);
+  end
+  
+  relativePosition = ConvertSlider2Position(slider, stageRange);
+  absolutePosition = origin + relativePosition;
+  switch axis
+    case 1
+      relativeAxis = handles.settings.xAxisID;
+      
+    case 2
+      relativeAxis = handles.settings.yAxisID;
+      
+    case 3
+      relativeAxis = handles.settings.zAxisID;
+  end
+  handles.stageController.MoveAxis(relativeAxis, absolutePosition);
+end
+
+
+function controlStruct = PurgeControlStruct(controlStruct)
+% Purge write-only fields from the struct
+  badFields = {'BeingDeleted',...
+               'Children',...
+               'Extent',...
+               'Parent',...
+               'SelectedObject',...
+               'Type'};
+  for i = 1:length(badFields)
+    if isfield(controlStruct, badFields{i})
+      controlStruct = rmfield(controlStruct, badFields{i});
+    end
+  end
+end
+
+
 function SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback)
 % Check the range of the new value and sanitize if it is out of bounds
   min = get(slider, 'Min');
@@ -488,142 +600,6 @@ function SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callba
   end
   set(slider, 'Value', newValue);
   Slider_Callback(slider, eventdata, handles);
-end
-
-
-function JogLeftFast(slider, eventdata, handles, Slider_Callback)
-% Jog the stage left as if the slider had moved a full thumb's distance
-  newValue = get(slider, 'Value') - GetFastJog(slider, handles);
-  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
-end
-
-
-function JogLeftModerate(slider, eventdata, handles, Slider_Callback)
-% Jog the stage left as if the slider had moved a tick's distance
-  newValue = get(slider, 'Value') - GetModerateJog(slider, handles);
-  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
-end
-
-
-function JogLeftSlow(slider, eventdata, handles, Slider_Callback)
-% Jog the stage left as if the slider had moved a fraction of a tick
-  newValue = get(slider, 'Value') - GetSlowJog(slider, handles);
-  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
-end
-
-
-function JogRightFast(slider, eventdata, handles, Slider_Callback)
-% Jog the stage right as if the slider had moved a full thumb's distance
-  newValue = get(slider, 'Value') + GetFastJog(slider, handles);
-  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
-end
-
-
-function JogRightModerate(slider, eventdata, handles, Slider_Callback)
-% Jog the stage right as if the slider had moved a tick's distance
-  newValue = get(slider, 'Value') + GetModerateJog(slider, handles);
-  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
-end
-
-
-function JogRightSlow(slider, eventdata, handles, Slider_Callback)
-% Jog the stage right as if the slider had moved a fraction of a tick
-  newValue = get(slider, 'Value') + GetSlowJog(slider, handles);
-  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
-end
-
-
-function jog = GetFastJog(slider, handles)
-% Jog the stage left as if the slider had moved a full thumb's distance
-  % Calculate the jog distance
-  switch handles.StepSize
-    case 'Slow'
-      sliderStep = handles.StepSizeArray(1,:);
-
-    case 'Moderate'
-      sliderStep = handles.StepSizeArray(2,:);
-
-    case 'Fast'
-      sliderStep = handles.StepSizeArray(3,:);
-  end
-  speed = sliderStep(2);
-  range = get(slider, 'Max') - get(slider, 'Min');
-  jog = range * speed;
-end
-
-
-function jog = GetModerateJog(slider, handles)
-% Jog the stage left as if the slider had moved a full thumb's distance
-  % Calculate the jog distance
-  switch handles.StepSize
-    case 'Slow'
-      sliderStep = handles.StepSizeArray(1,:);
-
-    case 'Moderate'
-      sliderStep = handles.StepSizeArray(2,:);
-
-    case 'Fast'
-      sliderStep = handles.StepSizeArray(3,:);
-  end
-  speed = sliderStep(1);
-  range = get(slider, 'Max') - get(slider, 'Min');
-  jog = range * speed;
-end
-
-
-function jog = GetSlowJog(slider, handles)
-% Jog the stage left as if the slider had moved a full thumb's distance
-  % Calculate the jog distance
-  switch handles.StepSize
-    case 'Slow'
-      sliderStep = handles.StepSizeArray(1,:);
-
-    case 'Moderate'
-      sliderStep = handles.StepSizeArray(2,:);
-
-    case 'Fast'
-      sliderStep = handles.StepSizeArray(3,:);
-  end
-  speed = sliderStep(1) / 5.0;
-  range = get(slider, 'Max') - get(slider, 'Min');
-  jog = range * speed;
-end
-
-
-function MoveStageToSliderPosition(axis, slider, handles)
-% Moves the provided axis to the position specified by the slider control
-  position = get(slider, 'Value') / 1000; % The stage controller uses the units of 'm', while the GUI uses 'mm'
-  switch axis
-    case 1 % X axis
-      
-    case 2 % Y axis
-      
-    case 3 % Z axis
-      
-  end
-  handles.stageController.MoveAxis(axis, position);
-end
-
-
-function handles = MoveStageToCamera(handles)
-  % First, open a modal progress bar while we are moving the stage. We
-  % don't want the user to be able to change anything until the stage
-  % movement is complete. Also, disable the close functionality (a user
-  % should not be able to prematurely close the window while the process is
-  % still completing.
-  waitForStage = waitbar(0, 'Please wait while the sample is repositioned...', 'WindowStyle', 'modal', 'CloseRequestFcn', '');
-  set(waitForStage, 'Pointer', 'watch');
-  
-  % TODO Move the stage and update wait bar with status
-  pause(2);
-  
-  % Delete the handle to the progress bar. We cannot call the close function
-  % since we overode that functionality to disable the user's ability to
-  % close the window.
-  delete(waitForStage);
-
-  % The stage should now be in the camera's field-of-view
-  handles.StagePosition = handles.CameraPosition;
 end
 
 
@@ -648,35 +624,53 @@ function [value, clean] = SanitizeEdit(edit, stageRange)
 end
 
 
-function handles = UpdateCameraSelectionGroup(handles, eventdata)
-% Processes all the commands associated with the camera selection group
-  % Check to see if a radio button selection triggered the event. If so,
-  % then select the camera to show in the viewer
-  if nargin == 2
-    % Select the camera
-    switch get(eventdata.NewValue, 'Tag')
-      case 'SampleLoadingCamera'
-        handles.CameraPosition = 'SampleLoading';
+function StepLeftLarge(slider, eventdata, handles, Slider_Callback)
+% Step the stage left as if the slider had moved a full thumb's distance
+  newValue = get(slider, 'Value') - GetLargeStep(slider, handles);
+  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
+end
 
-      case 'CoarsePositioningCamera'
-        handles.CameraPosition = 'CoarsePositioning';
 
-      case 'ScanningObjectiveCamera'
-        handles.CameraPosition = 'ScanningObjective';
-    end
-    
-    % Check to see if we need to reposition the stage
-    if get(handles.AutoMoveStage, 'Value') == 1 && ~strcmp(handles.CameraPosition, 'SampleLoading') && ~strcmp(handles.CameraPosition, handles.StagePosition)
-      handles = MoveStageToCamera(handles);
-    end
-  else
-    % The checkbox state was changed
-    if get(handles.AutoMoveStage, 'Value') == 1
-      set(handles.RepositionStageButton, 'Enable', 'off');
-    else
-      set(handles.RepositionStageButton, 'Enable', 'on');
-    end
-  end
+function StepLeftMedium(slider, eventdata, handles, Slider_Callback)
+% Step the stage left as if the slider had moved a tick's distance
+  newValue = get(slider, 'Value') - GetMediumStep(slider, handles);
+  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
+end
+
+
+function StepLeftSmall(slider, eventdata, handles, Slider_Callback)
+% Step the stage left as if the slider had moved a fraction of a tick
+  newValue = get(slider, 'Value') - GetSmallStep(slider, handles);
+  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
+end
+
+
+function StepRightLarge(slider, eventdata, handles, Slider_Callback)
+% Step the stage right as if the slider had moved a full thumb's distance
+  newValue = get(slider, 'Value') + GetLargeStep(slider, handles);
+  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
+end
+
+
+function StepRightMedium(slider, eventdata, handles, Slider_Callback)
+% Step the stage right as if the slider had moved a tick's distance
+  newValue = get(slider, 'Value') + GetMediumStep(slider, handles);
+  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
+end
+
+
+function StepRightSmall(slider, eventdata, handles, Slider_Callback)
+% Step the stage right as if the slider had moved a fraction of a tick
+  newValue = get(slider, 'Value') + GetSmallStep(slider, handles);
+  SanitizeAndSetValue(slider, eventdata, handles, newValue, Slider_Callback);
+end
+
+
+function TrackSlider2Edit(slider, edit, stageRange)
+% Updates the values of the edit boxes according to the values entered in
+% the sliders.
+  value = ConvertSlider2Position(slider, stageRange);
+  set(edit, 'String', sprintf('%g', value));
 end
 
 
@@ -693,19 +687,17 @@ end
 
 function UpdateEdit2Slider(edit, axis, slider, stageRange, handles)
 % Updates the values of the sliders according to the values entered in the
-% edit boxes. Also sanitizes the input
+% edit boxes. Also sanitizes the input.
   [value, clean] = SanitizeEdit(edit, stageRange);
   
-  stageMin = stageRange(1);
-  stageMax = stageRange(2);
+  stageRatio = value / stageRange;
   sliderMin = get(slider, 'Min');
   sliderMax = get(slider, 'Max');
-  stageRatio = (value - stageMin) / (stageMax - stageMin);
   sliderValue = stageRatio * (sliderMax - sliderMin) + sliderMin;
   set(slider, 'Value', sliderValue);
   set(edit, 'String', clean);
   
-  MoveStageToSliderPosition(axis, slider, handles);
+  MoveStageToSliderPosition(axis, slider, stageRange, handles);
 end
 
 
@@ -748,14 +740,7 @@ end
 function UpdateSlider2Edit(slider, axis, edit, stageRange, handles)
 % Updates the values of the edit boxes according to the values entered in
 % the sliders.
-  value = get(slider, 'Value');
-  stageMin = stageRange(1);
-  stageMax = stageRange(2);
-  sliderMin = get(slider, 'Min');
-  sliderMax = get(slider, 'Max');
-  sliderRatio = (value - sliderMin) / (sliderMax - sliderMin);
-  value = sliderRatio * (stageMax - stageMin) + stageMin;
-  set(edit, 'String', sprintf('%g', value));
+  TrackSlider2Edit(slider, edit, stageRange)
   
-  MoveStageToSliderPosition(axis, slider, handles);
+  MoveStageToSliderPosition(axis, slider, stageRange, handles);
 end
