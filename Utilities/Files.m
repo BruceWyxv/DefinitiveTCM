@@ -11,8 +11,6 @@
 %                               data
 %               <directory>     Absolute path of the data file directory
 %               <handle>        Object handle to this object object
-%               <index>         Index number of the frequency set being
-%                               requested
 % Outputs:      data            Structure containing the data extracted
 %                               from a file
 %               fileName        Absolute path to the TCM data file
@@ -29,9 +27,9 @@ function handle = Files()
 end
 
 
-function fileName = GetFileName(directory, fileNameBase, index)
+function fileName = GetFileName(directory, fileNameBase)
 % Assembles the file name from the components and return the string
-  fileName = sprintf('%s/%sAll%i.mat', directory, fileNameBase, index);
+  fileName = sprintf('%s/%s.mat', directory, fileNameBase);
 end
 
 

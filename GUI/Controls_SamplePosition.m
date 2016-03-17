@@ -45,19 +45,13 @@ function varargout = Controls_SamplePosition(varargin)
 end
 
 
-function Controls_SamplePosition_OpeningFcn(hObject, eventdata, handles, varargin)
+function Controls_SamplePosition_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSD>
 % This function has no output args, see OutputFcn.
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   unrecognized PropertyName/PropertyValue pairs from the
 %            command line (see VARARGIN)
-
-  % Choose default command line output for Controls_SamplePosition
-  handles.output = hObject;
-
-  % Update handles structure
-  guidata(hObject, handles);
 end
 
 
@@ -106,6 +100,36 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
+function origin = GetOrigin(position, positionLocations)
+% Fetches the origin of the position
+  switch position
+    case 'SampleLoading';
+      origin = positionLocations.load;
+      
+    case 'CoarsePositioning';
+      origin = positionLocations.wide;
+
+    case 'ScanningObjective';
+      origin = positionLocations.scan;
+  end
+end
+
+
+function InitializeChildren(hObject, handles) %#ok<DEFNU>
+% Initializes the states of any child controls, called by the main
+% ControlsGUI
+  % TODO Detect where the sample is and choose the appropriate camera - BEGIN
+  set(handles.SampleLoadPositionRadio, 'Value', 1);
+  handles.CameraPosition = 'SampleLoading';
+  handles.StagePosition = handles.CameraPosition;
+  % TODO Detect where the sample is and choose the appropriate camera - END
+  set(handles.LinkStageToCameraCheckbox, 'Value', 1);
+  handles = UpdateCameraSelectionGroup(handles);
+  
+  guidata(hObject, handles);
+end
+
+
 function handles = MoveStageToCamera(handles)
   % First, open a modal progress bar while we are moving the stage. We
   % don't want the user to be able to change anything until the stage

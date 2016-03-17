@@ -61,10 +61,11 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   % Check the input arguments
   if ~isempty(varargin)
     parser = inputParser;
+    parser.addParameter('addOn', open('Controls_AddOnTemplate.fig'), @ishandle);
     parser.addParameter('cameras', '', @isstruct);
-    parser.addParameter('stageController', '', @(x) isa(x, 'ESP300_Control'));
+    parser.addParameter('preferences', '', @isstruct);
     parser.addParameter('settings', '', @isstruct);
-    parser.addParameter('addOn', open('Controls_Template.fig'), @ishandle);
+    parser.addParameter('stageController', '', @(x) isa(x, 'ESP300_Control'));
     % Parse the input arguments
     parser.KeepUnmatched = true;
     try
@@ -73,10 +74,11 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
       error('Error when trying to parse input arguments:   %s', me.message);
     end
     % Assigned values
-    handles.cameras = parser.Results.cameras;
-    handles.stageController = parser.Results.stageController;
-    handles.settings = parser.Results.settings;
     handles.addOn = parser.Results.addOn;
+    handles.cameras = parser.Results.cameras;
+    handles.preferences = parser.Results.preferences;
+    handles.settings = parser.Results.settings;
+    handles.stageController = parser.Results.stageController;
   end
   
   % Load the add-on
@@ -131,7 +133,8 @@ function varargout = Controls_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
 % handles    structure with handles and user data (see GUIDATA)
 
   % Get default command line output from handles structure
-  varargout{1} = handles.output;
+  varargout{1} = handles.settings;
+  varargout{2} = handles.preferences;
 end
 
 
@@ -466,21 +469,6 @@ function step = GetMediumStep(slider, handles)
 end
 
 
-function origin = GetOrigin(position, positionLocations)
-% Fetches the origin of the position
-  switch position
-    case 'SampleLoading';
-      origin = positionLocations.load;
-      
-    case 'CoarsePositioning';
-      origin = positionLocations.wide;
-
-    case 'ScanningObjective';
-      origin = positionLocations.scan;
-  end
-end
-
-
 function step = GetSmallStep(slider, handles)
 % Jog the stage left as if the slider had moved a full thumb's distance
   % Calculate the jog distance
@@ -524,13 +512,9 @@ function handles = LoadAddOn(figure, handles)
   name = handles.addOn.Name;
   set(figure, 'Name', name);
   
-  % TODO Detect where the sample is and choose the appropriate camera - BEGIN
-  set(handles.SampleLoadPositionRadio, 'Value', 1);
-  handles.CameraPosition = 'SampleLoading';
-  handles.StagePosition = handles.CameraPosition;
-  % TODO Detect where the sample is and choose the appropriate camera - END
-  set(handles.LinkStageToCameraCheckbox, 'Value', 1);
-  handles = UpdateCameraSelectionGroup(handles);
+  % Initialize any controls created
+  addOnHandle = str2func(handles.addOn.Tag);
+  addOnHandle('InitializeChildren', hObject, handles);
 end
 
   function handles = LoadControls(handles, parent, controls)

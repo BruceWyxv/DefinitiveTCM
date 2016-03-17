@@ -58,10 +58,15 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   
   % Get the settings
   handles.settings = ini2struct('Resources/Settings.ini');
-  handles.oldSettings = handles.settings;
+  handles.old.Settings = handles.settings;
+  
+  % Get user preferences
+  handles.preferences = ini2struct('Resources/Preferences.ini');
+  handles.old.Preferences = handles.preferences;
   
   % Get the GUI add-ons
   handles.PositionSampleGUIAddOn = open('Controls_SamplePosition.fig');
+  handles.CollectDataGUIAddOn = open('Controls_CollectData.fig');
   
   % Set some defaults
   [rawLED.RedOn, throwaway.map, rawLED.alpha] = imread('Resources/Images/LED-Red-On.png');
@@ -151,18 +156,15 @@ function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
   % Open the Controls window with the PositionSample add-on
   % Controls is modal, which means that Main will be blocked until
   % Controls closes.
-  Controls('Cameras', handles.cameras,...
-           'StageController', handles.stageController,...
-           'Settings', handles.settings,...
-           'AddOn', handles.PositionSampleGUIAddOn);
-end
-
-
-% --- Executes on button press in CaptureImage.
-function CaptureImage_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
-% hObject    handle to CaptureImage (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
+  [handles.settings, handles.preferences]...
+    = Controls('AddOn', handles.PositionSampleGUIAddOn,...
+               'Cameras', handles.cameras,...
+               'Preferences', handles.preferences,...
+               'Settings', handles.settings,...
+               'StageController', handles.stageController);
+  
+  % Update handles structure
+  guidata(hObject, handles);
 end
 
 
@@ -175,10 +177,19 @@ end
 
 
 % --- Executes on button press in CollectData.
-function CollectData_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
+function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to CollectData (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  [handles.settings, handles.preferences]...
+    = Controls('AddOn', handles.CollectDataGUIAddOn,...
+               'Cameras', handles.cameras,...
+               'Preferences', handles.preferences,...
+               'Settings', handles.settings,...
+               'StageController', handles.stageController);
+  
+  % Update handles structure
+  guidata(hObject, handles);
 end
 
 
@@ -195,10 +206,16 @@ function MainWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFN
 % hObject    handle to MainWindow (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  % See if we need to save updated settings
-  if ~isequal(handles.settings, handles.oldSettings);
+  % Check to see if the settings have been modified
+  if ~isequal(handles.settings, handles.old.Settings);
     struct2ini('Resources/Settings.ini', handles.settings);
-    disp('Updated settings saved to ''Settings.ini''');
+    disp('Modified settings detected. Changes have been saved to ''Settings.ini''');
+  end
+  
+  % Check to see if the preferences have been modified
+  if ~isequal(handles.preferences, handles.old.Preferences);
+    struct2ini('Resources/Preferences.ini', handles.preferences);
+    disp('Modified preferences detected. Changes have been saved to ''Preferences.ini''');
   end
 
 % Hint: delete(hObject) closes the figure
@@ -211,9 +228,12 @@ function handles = CascadeActionPower(handles)
   % Connect to, or disconnect, from the hardware
   try
     if handles.power
-      handles.cameras.load = videoinput('matrox', handles.settings.loadID);
-      handles.cameras.wide = videoinput('matrox', handles.settings.wideID);
-      handles.cameras.scan = videoinput('matrox', handles.settings.scanID);
+      handles.cameras.load = videoinput('matrox', handles.settings.ImageAcquisition.loadDigitizer);
+      handles.cameras.wide = videoinput('matrox', handles.settings.ImageAcquisition.wideDigitizer);
+      handles.cameras.scan = videoinput('matrox', handles.settings.ImageAcquisition.scanDigitizer);
+      handles.cameras.load.SelectedSource = handles.settings.ImageAcquisition.loadChannel;
+      handles.cameras.wide.SelectedSource = handles.settings.ImageAcquisition.wideChannel;
+      handles.cameras.scan.SelectedSource = handles.settings.ImageAcquisition.scanChannel;
       handles.stageController = ESP300_Control(16, 'Stage Controller');
     else
       handles.cameras.load = '';
@@ -243,7 +263,6 @@ function handles = CascadeActionPower(handles)
     % Set the states of the GUI elements
     set(handles.TextOff, 'Enable', antistate);
     set(handles.TextOn, 'Enable', state);
-    set(handles.CaptureImage, 'Enable', state);
     set(handles.ToolsAndUtilities, 'Enable', state);
     set(handles.PositionSample, 'Enable', state);
     set(handles.CollectData, 'Enable', state);
