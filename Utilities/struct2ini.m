@@ -50,6 +50,10 @@ function PrintKeyValue(iniFile, name, value)
     % Check for a numeric
     if isnumeric(value)
       value = num2str(value);
+    else
+      % Perform some final string modifications
+      % Convert the ASCII characters to a literal equivalent
+      value = strrep(value, '\', '\\');
     end
     
     string = sprintf('%s=%s\r\n', name, value);

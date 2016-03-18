@@ -27,9 +27,13 @@ function handle = Files()
 end
 
 
-function fileName = GetFileName(directory, fileNameBase)
+function path = GetFileName(directory, fileName)
 % Assembles the file name from the components and return the string
-  fileName = sprintf('%s/%s.mat', directory, fileNameBase);
+  filePre = '';
+  if directory(end) ~= '\' && directory(end) ~= '/'
+    filePre = '\';
+  end
+  path = sprintf('%s%s%s.mat', directory, filePre, fileName);
 end
 
 

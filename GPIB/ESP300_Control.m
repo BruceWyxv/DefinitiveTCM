@@ -23,16 +23,19 @@ classdef ESP300_Control < GPIB_Interface
         name = GPIB_Interface.GetUnknownDeviceName();
       end
       myself@GPIB_Interface(address, name);
+      if nargin < 3
+        homeStages = true;
+      end
       
       % Turn on the system and check for active stages
       myself.activeStages = [1 1 1]; % Assume all stages are active
       myself.activeStages = ~strcmp(strtrim(myself.Query([1 2 3],'ID')), 'Unknown'); % Block out inactive stages
+      myself.TurnOnMotor([1 2 3]);
       
       % Turn on the motors and home the stages
       approveHome = 'ask';
       for i = 1:3
         if myself.activeStages(i)
-          myself.TurnOnMotor(i);
           if homeStages && (strcmp(approveHome, 'ask') || strcmp(approveHome, 'yes'))
             approveHome = myself.HomeAxis(i, approveHome);
             myself.WaitForAction(i);
@@ -73,6 +76,10 @@ classdef ESP300_Control < GPIB_Interface
     function WaitForAction(myself, axis, varargin)
     % Wait for a stage motion action to complete. Optionally display a
     % progess bar if requested and the appropriate arguments are provided.
+      if ~myself.IsValidAxis(axis)
+        return;
+      end
+      
       useWaitBar = false;
       
       % Check the input arguments
@@ -199,7 +206,7 @@ classdef ESP300_Control < GPIB_Interface
         switch answer
           case 'Yes'
             approveHome = 'yes';
-            warndlg({'Ensure it is safe to home the stages.'; 'Click ''OK'' to proceed.'}, 'Check sample', 'modal');
+            uiwait(warndlg({'Ensure it is safe to home the stages.'; 'Click ''OK'' to proceed.'}, 'Check sample', 'modal'));
             
           case 'Abort'
             error('Stages will not be homed. Connection to the stage controller failed.');
@@ -256,7 +263,7 @@ classdef ESP300_Control < GPIB_Interface
         warning('ESP300_Control:InvalidAxis', 'Invalid axis identifier "%i"\nMust be between 1 and %i. Command ignored.\n', axis, myself.maxStages);
         valid = false;
       elseif ~myself.activeStages(axis)
-        warning('ESP300_Control:InactiveAxis', 'Axis "%i" is not currently active.\n', axis);
+        %warning('ESP300_Control:InactiveAxis', 'Axis "%i" is not currently active.\n', axis);
         valid = false;
       else
         valid = true;

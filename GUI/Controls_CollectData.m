@@ -76,6 +76,9 @@ function SampleNameEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of SampleNameEdit as text
 %        str2double(get(hObject,'String')) returns contents of SampleNameEdit as a double
+  handles.sampleName = get(hObject,'String');
+  guidata(hObject,handles);
+  
   CheckPath(handles);
 end
 
@@ -120,10 +123,14 @@ function SaveFolderEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 end
 
 
-function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to RunScanButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  handles.preferences.CollectData.savePath = CheckPath(handles);
+  handles.preferences.CollectData.sampleInfo = SampleInfoArray2Linear(handles.sampleInfo);
+  
+  guidata(hObject,handles);
 end
 
 
@@ -148,9 +155,9 @@ function SampleInfoButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU
 % hObject    handle to SampleInfoButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  sampleInfo = inputdlg({'Enter sample details:'}, 'Sample Information', 8, handles.sampleInfo);
+  sampleInfo = inputdlg({'Enter sample details:'}, 'Sample Information', 8, {handles.sampleInfo});
   if ~isempty(sampleInfo)
-    handles.sampleInfo = sampleInfo;
+    handles.sampleInfo = sampleInfo{1};
   end
   
   guidata(hObject,handles);
@@ -160,7 +167,7 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
-function CheckPath(handles)
+function fullPath = CheckPath(handles)
 % Checks the current path of the save file. If there is an error then the
 % appropriate edit box is given a light red background. Otherwise the edit
 % boxes are set to a white background.
@@ -170,18 +177,20 @@ function CheckPath(handles)
     fileUtilities = Files();
   end
   
+  fullPath = fileUtilities.GetFileName(handles.saveFolder, handles.sampleName);
+  
   if exist(handles.saveFolder, 'dir') ~= 7
     % The folder does not exist, change the background color of the
     % SaveFolder edit box to indicate an error
-    set(handles.SaveFolderEdit, 'BackgroundColor', [1, 0.4, 0.6]);
+    set(handles.SaveFolderEdit, 'BackgroundColor', [1, 0.4, 0.4]);
   else
     % All clear
     set(handles.SaveFolderEdit, 'BackgroundColor', 'white');
     
-    if exist(files.GetFileName(handles.saveFolder, handles.sampleName), 'file')
+    if exist(fullPath, 'file')
       % The file already exists, change the background color of the
       % SampleName edit box to indicate an error
-      set(handles.SampleNameEdit, 'BackgroundColor', [1, 0.4, 0.6]);
+      set(handles.SampleNameEdit, 'BackgroundColor', [1, 0.4, 0.4]);
     else
       % All clear
       set(handles.SampleNameEdit, 'BackgroundColor', 'white');
@@ -189,14 +198,46 @@ function CheckPath(handles)
   end
 end
 
-function InitializeChildren(hObject, handles) %#ok<DEFNU>
+
+function handles = InitializeChildren(handles) %#ok<DEFNU>
 % Initializes the states of any child controls, called by the main
 % ControlsGUI
-  [handles.saveFolder, handles.sampleName, ~] = fileparts(handles.preferences.CollectData.savePath);
+  if ~isempty(handles.preferences.CollectData.savePath)
+    [handles.saveFolder, handles.sampleName, ~] = fileparts(handles.preferences.CollectData.savePath);
+  else
+    handles.saveFolder = system_dependent('getuserworkfolder');
+    handles.sampleName = 'Sample1';
+  end
   set(handles.SaveFolderEdit, 'String', handles.saveFolder);
   set(handles.SampleNameEdit, 'String', handles.sampleName);
   
-  CheckPath(handles);
+  handles.CameraPosition = 'ScanningObjective';
+  handles = Controls('SwitchCamera', handles);
+  handles = Controls('MoveStageToCamera', handles);
   
-  guidata(hObject, handles);
+  if ~isfield(handles, 'sampleInfo')
+    handles.sampleInfo = SampleInfoLinear2Array(handles.preferences.CollectData.sampleInfo);
+  end
+  
+  CheckPath(handles);
+end
+
+
+function linear = SampleInfoArray2Linear(array)
+% Convert a cell array into a linear string with literal newline characters
+  linear = '';
+  for i = 1:size(array, 1)
+    trimmed = strtrim(array(i,:));
+    if i > 1
+      linear = strcat(linear, '\n', trimmed);
+    else
+      linear = trimmed;
+    end
+  end
+end
+
+
+function array = SampleInfoLinear2Array(linear)
+% Convert a string with literal newline characters into a cell array
+  array = char(strtrim(strsplit(linear, {'\\n'})));
 end

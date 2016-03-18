@@ -73,7 +73,7 @@ function CameraSelectionGroup_SelectionChangedFcn(hObject, eventdata, handles) %
 % hObject    handle to the selected object in CameraSelectionGroup 
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  handles = UpdateCameraSelectionGroup(eventdata, handles);
+  handles = UpdateCameraSelectionGroup(handles, eventdata);
   guidata(hObject, handles);
 end
 
@@ -84,7 +84,8 @@ function LinkStageToCameraCheckbox_Callback(hObject, eventdata, handles) %#ok<DE
 % handles    structure with handles and user data (see GUIDATA)
 
   % Hint: get(hObject,'Value') returns toggle state of LinkStageToCameraCheckbox
-  UpdateCameraSelectionGroup(handles);
+  handles = LinkCheckbox(handles);
+  guidata(hObject, handles);
 end
 
 
@@ -92,7 +93,7 @@ function MoveStageToCameraButton_Callback(hObject, eventdata, handles) %#ok<DEFN
 % hObject    handle to MoveStageToCameraButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  handles = MoveStageToCamera(handles);
+  handles = Controls('MoveStageToCamera', handles);
   guidata(hObject, handles);
 end
 
@@ -100,88 +101,62 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
-function origin = GetOrigin(position, positionLocations)
-% Fetches the origin of the position
-  switch position
-    case 'SampleLoading';
-      origin = positionLocations.load;
-      
-    case 'CoarsePositioning';
-      origin = positionLocations.wide;
-
-    case 'ScanningObjective';
-      origin = positionLocations.scan;
-  end
-end
-
-
-function InitializeChildren(hObject, handles) %#ok<DEFNU>
+function handles = InitializeChildren(handles) %#ok<DEFNU>
 % Initializes the states of any child controls, called by the main
 % ControlsGUI
   % TODO Detect where the sample is and choose the appropriate camera - BEGIN
   set(handles.SampleLoadPositionRadio, 'Value', 1);
   handles.CameraPosition = 'SampleLoading';
-  handles.StagePosition = handles.CameraPosition;
+  handles.StagePosition = '';
   % TODO Detect where the sample is and choose the appropriate camera - END
-  set(handles.LinkStageToCameraCheckbox, 'Value', 1);
+  
+  % Set the stage <-> camera link checkbox
+  set(handles.LinkStageToCameraCheckbox, 'Value', handles.preferences.PositionSample.linkStageToCamera);
   handles = UpdateCameraSelectionGroup(handles);
-  
-  guidata(hObject, handles);
+  handles = LinkCheckbox(handles);
 end
 
 
-function handles = MoveStageToCamera(handles)
-  % First, open a modal progress bar while we are moving the stage. We
-  % don't want the user to be able to change anything until the stage
-  % movement is complete. Also, disable the close functionality (a user
-  % should not be able to prematurely close the window while the process is
-  % still completing.
-  
-  % Get the current stage positions
-  current = [str2double(get(handles.XEdit, 'String')) ...
-             str2double(get(handles.YEdit, 'String')) ...
-             str2double(get(handles.ZEdit, 'String'))];
-  % Get the new origin and calculate the new position
-  cameraOrigin = GetOrigin(handles.CameraPosition, handles.settings.PositionLocations);
-  new = current + cameraOrigin;
-  % Move the axis, showing a progress bar
-  handles.stageController.MoveAxis(handles.settings.xAxisID, new(1), true);
-  handles.stageController.MoveAxis(handles.settings.yAxisID, new(2), true);
-  handles.stageController.MoveAxis(handles.settings.zAxisID, new(3), true);
-
-  % The stage should now be in the camera's field-of-view
-  handles.StagePosition = handles.CameraPosition;
-end
-
-
-function handles = UpdateCameraSelectionGroup(handles, eventdata)
-% Processes all the commands associated with the camera selection group
-  % Check to see if a radio button selection triggered the event. If so,
-  % then select the camera to show in the viewer
-  if nargin == 2
-    % Select the camera
-    switch get(eventdata.NewValue, 'Tag')
-      case 'SampleLoadPositionRadio'
-        handles.CameraPosition = 'SampleLoading';
-
-      case 'WideImagePositionRadio'
-        handles.CameraPosition = 'WideImage';
-
-      case 'ScanObjectivePositionRadio'
-        handles.CameraPosition = 'ScanningObjective';
-    end
-    
-    % Check to see if we need to reposition the stage
-    if get(handles.MoveStageToCameraButton, 'Value') == 1 && ~strcmp(handles.CameraPosition, 'SampleLoading') && ~strcmp(handles.CameraPosition, handles.StagePosition)
-      handles = MoveStageToCamera(handles);
-    end
+function handles = LinkCheckbox(handles)
+% Update GUI based on the state of the LinkStageToCamera checkbox
+  value = get(handles.LinkStageToCameraCheckbox, 'Value');
+  if value == 1
+    state = 'off';
   else
-    % The checkbox state was changed
-    if get(handles.LinkStageToCameraCheckbox, 'Value') == 1
-      state = 'off';
+    state = 'on';
+  end
+  set(handles.MoveStageToCameraButton, 'Enable', state);
+  
+  % Update the preferences
+  handles.preferences.PositionSample.linkStageToCamera = value;
+end
+
+
+function handles = UpdateCameraSelectionGroup(handles, data)
+% Processes all the commands associated with the camera selection group
+  % Check to see if the camera view needs to change
+  if nargin == 2
+    if ischar(data)
+      handles.CameraPosition = data;
     else
-      state = 'on';
+      % Select the camera
+      switch get(data.NewValue, 'Tag');
+        case 'SampleLoadPositionRadio'
+          handles.CameraPosition = 'SampleLoading';
+
+        case 'WideImagePositionRadio'
+          handles.CameraPosition = 'WideImage';
+
+        case 'ScanObjectivePositionRadio'
+          handles.CameraPosition = 'ScanningObjective';
+      end
     end
-    set(handles.MoveStageToCameraButton, 'Enable', state);
+  end
+  
+  handles = Controls('SwitchCamera', handles);
+  
+  % Check if we need to reposition the stage
+  if get(handles.MoveStageToCameraButton, 'Value') == 0 || strcmp(handles.CameraPosition, handles.StagePosition)
+    handles = Controls('MoveStageToCamera', handles);
   end
 end

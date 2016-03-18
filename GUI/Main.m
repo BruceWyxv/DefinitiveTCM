@@ -56,12 +56,16 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 % Choose default command line output for Main
   handles.output = hObject;
   
+  % Common files
+  handles.settingsFile = 'Resources/Settings.ini';
+  handles.preferencesFile = 'Resources/Preferences.ini';
+  
   % Get the settings
-  handles.settings = ini2struct('Resources/Settings.ini');
+  handles.settings = ini2struct(handles.settingsFile);
   handles.old.Settings = handles.settings;
   
   % Get user preferences
-  handles.preferences = ini2struct('Resources/Preferences.ini');
+  handles.preferences = ini2struct(handles.preferencesFile);
   handles.old.Preferences = handles.preferences;
   
   % Get the GUI add-ons
@@ -163,6 +167,8 @@ function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
                'Settings', handles.settings,...
                'StageController', handles.stageController);
   
+  UpdateInitializationFiles(handles);
+  
   % Update handles structure
   guidata(hObject, handles);
 end
@@ -188,6 +194,8 @@ function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
                'Settings', handles.settings,...
                'StageController', handles.stageController);
   
+  UpdateInitializationFiles(handles);
+  
   % Update handles structure
   guidata(hObject, handles);
 end
@@ -207,16 +215,7 @@ function MainWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFN
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
   % Check to see if the settings have been modified
-  if ~isequal(handles.settings, handles.old.Settings);
-    struct2ini('Resources/Settings.ini', handles.settings);
-    disp('Modified settings detected. Changes have been saved to ''Settings.ini''');
-  end
-  
-  % Check to see if the preferences have been modified
-  if ~isequal(handles.preferences, handles.old.Preferences);
-    struct2ini('Resources/Preferences.ini', handles.preferences);
-    disp('Modified preferences detected. Changes have been saved to ''Preferences.ini''');
-  end
+  UpdateInitializationFiles(handles);
 
 % Hint: delete(hObject) closes the figure
   delete(hObject);
@@ -269,5 +268,19 @@ function handles = CascadeActionPower(handles)
     set(handles.RunAnalysis, 'Enable', state);
   catch me
     warning('Main:PowerOn', me.message);
+  end
+end
+
+function UpdateInitializationFiles(handles)
+  % Check to see if the settings have been modified
+  if ~isequal(handles.settings, handles.old.Settings);
+    struct2ini(handles.settingsFile, handles.settings);
+    fprintf('Modified settings detected. Changes have been saved to ''%s''', handles.settingsFile);
+  end
+  
+  % Check to see if the preferences have been modified
+  if ~isequal(handles.preferences, handles.old.Preferences);
+    struct2ini(handles.preferencesFile, handles.preferences);
+    fprintf('Modified preferences detected. Changes have been saved to ''%s''', handles.preferencesFile);
   end
 end

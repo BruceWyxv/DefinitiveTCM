@@ -4,7 +4,9 @@ function struct = ini2struct(FileName)
 %
 % Modified from: http://www.mathworks.com/matlabcentral/fileexchange/45725-ini2struct
 
+  commentFields = cell(0);
   previousFields = cell(0);
+  sectionFields = cell(0);
   f = fopen(FileName,'r');
   while ~feof(f)
     s = strtrim(fgetl(f));
@@ -15,12 +17,13 @@ function struct = ini2struct(FileName)
       value = '';
     % Check for a section header
     elseif s(1) == '['
-      [section, previousFields] = GenerateName(strtok(s(2:end), ']'), previousFields);
+      [section, sectionFields] = GenerateName(strtok(s(2:end), ']'), sectionFields);
       struct.(section) = [];
+      previousFields = cell(0);
       continue;
     % Check for a comment
     elseif s(1) == ';' || s(1) == '#'
-      [field, previousFields] = GenerateName('TCMComment', previousFields);
+      [field, commentFields] = GenerateName('TCMComment', commentFields);
       value = s;
     % Process a key-value pair
     else

@@ -22,7 +22,7 @@ function varargout = Controls(varargin)
 
 % Edit the above text to modify the response to help PositionSample
 
-% Last Modified by GUIDE v2.5 15-Mar-2016 15:32:49
+% Last Modified by GUIDE v2.5 17-Mar-2016 13:44:41
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -81,38 +81,39 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     handles.stageController = parser.Results.stageController;
   end
   
+  % Initialize the camera view
+  axes(handles.CameraView)
+  handles.CameraView = image(zeros(640, 480, 3));
+  handles.currentCameraFeed = '';
+  
   % Load the add-on
   handles = LoadAddOn(hObject, handles);
   
   % Set some parameters
-  axes(handles.CameraView)
-  handles.CameraView = image(zeros(640, 480, 3));
-  preview(handles.cameras.load, handles.CameraView);
-  axis image; % Preserve the aspect ratio
-  handles.StageRanges = [handles.settings.SampleBoundaries.x ...
+  handles.stageRanges = [handles.settings.SampleBoundaries.x ...
                          handles.settings.SampleBoundaries.y ...
                          handles.settings.SampleBoundaries.z];
   set(handles.XEdit, 'String', '0');
   set(handles.YEdit, 'String', '0');
   set(handles.ZEdit, 'String', '0');
-  UpdateEdit2Slider(handles.XEdit, 1, handles.XSlider, handles.StageRanges(1), handles);
-  UpdateEdit2Slider(handles.YEdit, 2, handles.YSlider, handles.StageRanges(2), handles);
-  UpdateEdit2Slider(handles.ZEdit, 3, handles.ZSlider, handles.StageRanges(3), handles);
+  UpdateEdit2Slider(handles.XEdit, 1, handles.XSlider, handles.stageRanges(1), handles);
+  UpdateEdit2Slider(handles.YEdit, 2, handles.YSlider, handles.stageRanges(2), handles);
+  UpdateEdit2Slider(handles.ZEdit, 3, handles.ZSlider, handles.stageRanges(3), handles);
   
   % Add listners so that dragging the sliders also updates the edit boxes,
   % but do not move the stages yet. Wait until the user has released the
   % cursor before actually moving the stages.
   addlistener(handles.XSlider, 'Value', 'PreSet',...
-    @(~, ~) TrackSlider2Edit(handles.XSlider, handles.XEdit, handles.StageRanges(1)));
+    @(~, ~) TrackSlider2Edit(handles.XSlider, handles.XEdit, handles.stageRanges(1)));
   addlistener(handles.YSlider, 'Value', 'PreSet',...
-    @(~, ~) TrackSlider2Edit(handles.YSlider, handles.YEdit, handles.StageRanges(2)));
+    @(~, ~) TrackSlider2Edit(handles.YSlider, handles.YEdit, handles.stageRanges(2)));
   addlistener(handles.ZSlider, 'Value', 'PreSet',...
-    @(~, ~) TrackSlider2Edit(handles.ZSlider, handles.ZEdit, handles.StageRanges(3)));
+    @(~, ~) TrackSlider2Edit(handles.ZSlider, handles.ZEdit, handles.stageRanges(3)));
   
   % Set the speeds and motor controls
   set(handles.Medium, 'Value', 1);
-  handles.StepSize = 'Medium';
-  handles.StepSizeArray = [0.01, 0.05;...
+  handles.stepSize = 'Medium';
+  handles.stepSizeArray = [0.01, 0.05;...
                            0.02, 0.1;...
                            0.04, 0.2];
   set(handles.ComputerControl, 'Value', 1);
@@ -122,6 +123,21 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 
   % Update handles structure
   guidata(hObject, handles);
+  
+  uiwait(hObject);
+end
+
+
+function ControlsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to ControlsWindow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+  if isequal(get(hObject, 'waitstatus'), 'waiting')
+    uiresume(hObject);
+  else
+    delete(hObject);
+  end
 end
 
 
@@ -135,6 +151,9 @@ function varargout = Controls_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
   % Get default command line output from handles structure
   varargout{1} = handles.settings;
   varargout{2} = handles.preferences;
+  
+  % Finally delete the dialog
+  delete(hObject);
 end
 
 
@@ -215,7 +234,7 @@ function XEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of XEdit as text
 %        str2double(get(hObject,'String')) returns contents of XEdit as a double
-  UpdateEdit2Slider(hObject, 1, handles.XSlider, handles.StageRanges(1), handles);
+  UpdateEdit2Slider(hObject, 1, handles.XSlider, handles.stageRanges(1), handles);
 end
 
 
@@ -274,7 +293,7 @@ function XSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
 
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-  UpdateSlider2Edit(hObject, 1, handles.XEdit, handles.StageRanges(1), handles);
+  UpdateSlider2Edit(hObject, 1, handles.XEdit, handles.stageRanges(1), handles);
 end
 
 
@@ -285,7 +304,7 @@ function YEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of YEdit as text
 %        str2double(get(hObject,'String')) returns contents of YEdit as a double
-  UpdateEdit2Slider(hObject, 2, handles.YSlider, handles.StageRanges(2), handles);
+  UpdateEdit2Slider(hObject, 2, handles.YSlider, handles.stageRanges(2), handles);
 end
 
 
@@ -344,7 +363,7 @@ function YSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
 
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-  UpdateSlider2Edit(hObject, 2, handles.YEdit, handles.StageRanges(2), handles);
+  UpdateSlider2Edit(hObject, 2, handles.YEdit, handles.stageRanges(2), handles);
 end
 
 
@@ -355,7 +374,7 @@ function ZEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of ZEdit as text
 %        str2double(get(hObject,'String')) returns contents of ZEdit as a double
-  UpdateEdit2Slider(hObject, 3, handles.ZSlider, handles.StageRanges(3), handles);
+  UpdateEdit2Slider(hObject, 3, handles.ZSlider, handles.stageRanges(3), handles);
 end
 
 
@@ -414,7 +433,7 @@ function ZSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
 
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-  UpdateSlider2Edit(hObject, 3, handles.ZEdit, handles.StageRanges(3), handles);
+  UpdateSlider2Edit(hObject, 3, handles.ZEdit, handles.stageRanges(3), handles);
 end
 
 
@@ -434,15 +453,15 @@ end
 function step = GetLargeStep(slider, handles)
 % Jog the stage left as if the slider had moved a full thumb's distance
   % Calculate the jog distance
-  switch handles.StepSize
+  switch handles.stepSize
     case 'Small'
-      sliderStep = handles.StepSizeArray(1,:);
+      sliderStep = handles.stepSizeArray(1,:);
 
     case 'Medium'
-      sliderStep = handles.StepSizeArray(2,:);
+      sliderStep = handles.stepSizeArray(2,:);
 
     case 'Large'
-      sliderStep = handles.StepSizeArray(3,:);
+      sliderStep = handles.stepSizeArray(3,:);
   end
   speed = sliderStep(2);
   range = get(slider, 'Max') - get(slider, 'Min');
@@ -453,15 +472,15 @@ end
 function step = GetMediumStep(slider, handles)
 % Jog the stage left as if the slider had moved a full thumb's distance
   % Calculate the jog distance
-  switch handles.StepSize
+  switch handles.stepSize
     case 'Small'
-      sliderStep = handles.StepSizeArray(1,:);
+      sliderStep = handles.stepSizeArray(1,:);
 
     case 'Medium'
-      sliderStep = handles.StepSizeArray(2,:);
+      sliderStep = handles.stepSizeArray(2,:);
 
     case 'Large'
-      sliderStep = handles.StepSizeArray(3,:);
+      sliderStep = handles.stepSizeArray(3,:);
   end
   speed = sliderStep(1);
   range = get(slider, 'Max') - get(slider, 'Min');
@@ -469,18 +488,33 @@ function step = GetMediumStep(slider, handles)
 end
 
 
+function origin = GetOrigin(position, positionLocations)
+% Fetches the origin of the position
+  switch position
+    case 'SampleLoading';
+      origin = positionLocations.load;
+      
+    case 'WideImage';
+      origin = positionLocations.wide;
+
+    case 'ScanningObjective';
+      origin = positionLocations.scan;
+  end
+end
+
+
 function step = GetSmallStep(slider, handles)
 % Jog the stage left as if the slider had moved a full thumb's distance
   % Calculate the jog distance
-  switch handles.StepSize
+  switch handles.stepSize
     case 'Small'
-      sliderStep = handles.StepSizeArray(1,:);
+      sliderStep = handles.stepSizeArray(1,:);
 
     case 'Medium'
-      sliderStep = handles.StepSizeArray(2,:);
+      sliderStep = handles.stepSizeArray(2,:);
 
     case 'Large'
-      sliderStep = handles.StepSizeArray(3,:);
+      sliderStep = handles.stepSizeArray(3,:);
   end
   speed = sliderStep(1) / 5.0;
   range = get(slider, 'Max') - get(slider, 'Min');
@@ -493,7 +527,6 @@ function handles = LoadAddOn(figure, handles)
   for i = 1:length(controls)
     % Get the properties
     control = controls(i);
-    children = control.Children;
     type = control.Type;
     % Remove fields that will cause errors
     controlStruct = PurgeControlStruct(get(control));
@@ -501,10 +534,11 @@ function handles = LoadAddOn(figure, handles)
       case 'uibuttongroup'
         group = uibuttongroup(figure, controlStruct);
         handles.(controlStruct.Tag) = group;
+        children = control.Children;
         handles = LoadControls(handles, group, children);
         
       case 'uicontrol'
-        handles.(controlStruct.Tag) = LoadControls(handles, figure, controlStruct);
+        handles = LoadControls(handles, figure, controlStruct);
     end
   end
   
@@ -514,16 +548,45 @@ function handles = LoadAddOn(figure, handles)
   
   % Initialize any controls created
   addOnHandle = str2func(handles.addOn.Tag);
-  addOnHandle('InitializeChildren', hObject, handles);
+  handles = addOnHandle('InitializeChildren', handles);
 end
 
-  function handles = LoadControls(handles, parent, controls)
-  % Load an array of controls
+function handles = LoadControls(handles, parent, controls)
+% Load an array of controls
+  if length(controls) == 1
+    controlStruct = PurgeControlStruct(controls);
+    handles.(controlStruct.Tag) = uicontrol(parent, controlStruct);
+  else
     for i = 1:length(controls)
       controlStruct = PurgeControlStruct(get(controls(i)));
       handles.(controlStruct.Tag) = uicontrol(parent, controlStruct);
     end
   end
+end
+
+
+function handles = MoveStageToCamera(handles) %#ok<DEFNU>
+  % First, open a modal progress bar while we are moving the stage. We
+  % don't want the user to be able to change anything until the stage
+  % movement is complete. Also, disable the close functionality (a user
+  % should not be able to prematurely close the window while the process is
+  % still completing.
+  
+  % Get the current stage positions
+  current = [str2double(get(handles.XEdit, 'String')) ...
+             str2double(get(handles.YEdit, 'String')) ...
+             str2double(get(handles.ZEdit, 'String'))];
+  % Get the new origin and calculate the new position
+  cameraOrigin = GetOrigin(handles.CameraPosition, handles.settings.PositionLocations);
+  new = current + cameraOrigin;
+  % Move the axis, showing a progress bar
+  handles.stageController.MoveAxis(handles.settings.xAxisID, new(1), true);
+  handles.stageController.MoveAxis(handles.settings.yAxisID, new(2), true);
+  handles.stageController.MoveAxis(handles.settings.zAxisID, new(3), true);
+
+  % The stage should now be in the camera's field-of-view
+  handles.StagePosition = handles.CameraPosition;
+end
 
 
 function MoveStageToSliderPosition(axis, slider, handles)
@@ -532,15 +595,14 @@ function MoveStageToSliderPosition(axis, slider, handles)
     case 'SampleLoading';
       origin = handles.settings.PositionLocations.load(axis);
       
-    case 'CoarsePositioning';
+    case 'WideImage';
       origin = handles.settings.PositionLocations.wide(axis);
 
     case 'ScanningObjective';
       origin = handles.settings.PositionLocations.scan(axis);
   end
   
-  relativePosition = ConvertSlider2Position(slider, stageRange);
-  absolutePosition = origin + relativePosition;
+  relativePosition = ConvertSlider2Position(slider, handles.stageRanges(axis));
   switch axis
     case 1
       relativeAxis = handles.settings.xAxisID;
@@ -551,6 +613,7 @@ function MoveStageToSliderPosition(axis, slider, handles)
     case 3
       relativeAxis = handles.settings.zAxisID;
   end
+  absolutePosition = origin + relativePosition;
   handles.stageController.MoveAxis(relativeAxis, absolutePosition);
 end
 
@@ -595,14 +658,14 @@ function [value, clean] = SanitizeEdit(edit, stageRange)
   % extracted
   value = sscanf(entry, '%g', 1);
   if isempty(value)
-    warning('GUI:InvalidEntry', '''%s'' does not contain a valid number. Setting to ''%g''', value, stageRange(1));
-    value = stageRange(1);
-  elseif value < stageRange(1)
-    warning('GUI:InvalidEntry', '''%g'' is below the accepted stage range. Setting to ''%g''', value, stageRange(1));
-    value = stageRange(1);
-  elseif value > stageRange(2)
-    warning('GUI:InvalidEntry', '''%g'' is above the accepted stage range. Setting to ''%g''', value, stageRange(2));
-    value = stageRange(2);
+    warning('GUI:InvalidEntry', '''%s'' does not contain a valid number. Setting to ''0''', value);
+    value = 0;
+  elseif value < 0
+    warning('GUI:InvalidEntry', '''%g'' is below the accepted stage range. Setting to ''0''', value);
+    value = 0;
+  elseif value > stageRange
+    warning('GUI:InvalidEntry', '''%g'' is above the accepted stage range. Setting to ''%g''', value, stageRange);
+    value = stageRange;
   end
   clean = sprintf('%g', value);
 end
@@ -657,6 +720,29 @@ function TrackSlider2Edit(slider, edit, stageRange)
   set(edit, 'String', sprintf('%g', value));
 end
 
+function handles = SwitchCamera(handles) %#ok<DEFNU>
+% Selects a new camera for the video feed
+  switch handles.CameraPosition
+    case 'SampleLoading'
+      newCamera = handles.cameras.load;
+      
+    case 'WideImage'
+      newCamera = handles.cameras.wide;
+      
+    case 'ScanningObjective'
+      newCamera = handles.cameras.scan;
+  end
+
+  % Start the camera video feed
+  if ~isempty(handles.currentCameraFeed)
+    stoppreview(handles.currentCameraFeed);
+    closepreview(handles.currentCameraFeed);
+  end
+  preview(newCamera, handles.CameraView);
+  axis image; % Preserve the aspect ratio
+  handles.currentCameraFeed = newCamera;
+end
+
 
 function UpdateControlSystem(handles)
 % Updates the control system to what the user selected
@@ -681,7 +767,7 @@ function UpdateEdit2Slider(edit, axis, slider, stageRange, handles)
   set(slider, 'Value', sliderValue);
   set(edit, 'String', clean);
   
-  MoveStageToSliderPosition(axis, slider, stageRange, handles);
+  MoveStageToSliderPosition(axis, slider, handles);
 end
 
 
@@ -694,25 +780,25 @@ function handles = UpdateStepSizeGroup(handles, eventdata)
     % Sets the relative size of a single step
     switch get(eventdata.NewValue, 'Tag')
       case 'Small'
-        handles.StepSize = 'Small';
+        handles.stepSize = 'Small';
 
       case 'Medium'
-        handles.StepSize = 'Medium';
+        handles.stepSize = 'Medium';
 
       case 'Large'
-        handles.StepSize = 'Large';
+        handles.stepSize = 'Large';
     end
   end
   
-  switch handles.StepSize
+  switch handles.stepSize
     case 'Small'
-      sliderStep = handles.StepSizeArray(1,:);
+      sliderStep = handles.stepSizeArray(1,:);
       
     case 'Medium'
-      sliderStep = handles.StepSizeArray(2,:);
+      sliderStep = handles.stepSizeArray(2,:);
       
     case 'Large'
-      sliderStep = handles.StepSizeArray(3,:);
+      sliderStep = handles.stepSizeArray(3,:);
   end
   
   set(handles.XSlider, 'SliderStep', sliderStep);
@@ -726,5 +812,5 @@ function UpdateSlider2Edit(slider, axis, edit, stageRange, handles)
 % the sliders.
   TrackSlider2Edit(slider, edit, stageRange)
   
-  MoveStageToSliderPosition(axis, slider, stageRange, handles);
+  MoveStageToSliderPosition(axis, slider, handles);
 end
