@@ -22,7 +22,7 @@ function varargout = Controls_CollectData(varargin)
 
 % Edit the above text to modify the response to help Controls_CollectData
 
-% Last Modified by GUIDE v2.5 17-Mar-2016 10:35:49
+% Last Modified by GUIDE v2.5 22-Mar-2016 13:56:16
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -69,6 +69,49 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
+% --- Executes on button press in AdvancedSettingsButton.
+function AdvancedSettingsButton_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to AdvancedSettingsButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+end
+
+
+% --- Executes on button press in ProbeLaserButton.
+function ProbeLaserButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ProbeLaserButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  handles = UpdateLaserStates(handles, 'Probe');
+  guidate(hObject, handles);
+end
+
+
+% --- Executes on button press in PumpLaserButton.
+function PumpLaserButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to PumpLaserButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  handles = UpdateLaserStates(handles, 'Pump');
+  guidate(hObject, handles);
+end
+
+
+function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to RunScanButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  % Get the information for the data collection
+  savePath = CheckPath(handles);
+  sampleInfo = SampleInfoArray2Linear(handles.sampleInfo);
+  
+  
+  handles.preferences.CollectData.savePath = savePath;
+  handles.preferences.CollectData.sampleInfo = sampleInfo;
+  guidata(hObject,handles);
+end
+
+
 function SampleNameEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to SampleNameEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -120,17 +163,6 @@ function SaveFolderEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
   end
-end
-
-
-function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to RunScanButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  handles.preferences.CollectData.savePath = CheckPath(handles);
-  handles.preferences.CollectData.sampleInfo = SampleInfoArray2Linear(handles.sampleInfo);
-  
-  guidata(hObject,handles);
 end
 
 
@@ -199,9 +231,19 @@ function fullPath = CheckPath(handles)
 end
 
 
+function CleanUpForClose(handles) %#ok<DEFNU>
+% Turn off all the lasers
+  handles.probeLaserPower = false;
+  handles.probeLaserController.TurnOff();
+  handles.pumplaserPower = false;
+  handles.pumpLaserController.TurnOff();
+end
+
+
 function handles = InitializeChildren(handles) %#ok<DEFNU>
 % Initializes the states of any child controls, called by the main
 % ControlsGUI
+  % Sets the values of the save path and sample name
   if ~isempty(handles.preferences.CollectData.savePath)
     [handles.saveFolder, handles.sampleName, ~] = fileparts(handles.preferences.CollectData.savePath);
   else
@@ -210,16 +252,35 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   end
   set(handles.SaveFolderEdit, 'String', handles.saveFolder);
   set(handles.SampleNameEdit, 'String', handles.sampleName);
+  CheckPath(handles);
   
-  handles.CameraPosition = 'ScanningObjective';
-  handles = Controls('SwitchCamera', handles);
-  handles = Controls('MoveStageToCamera', handles);
-  
+  % Load the previously recorded sample info
   if ~isfield(handles, 'sampleInfo')
     handles.sampleInfo = SampleInfoLinear2Array(handles.preferences.CollectData.sampleInfo);
   end
   
-  CheckPath(handles);
+  % Move the stage and camera to the scanning position
+  handles.CameraPosition = 'ScanningObjective';
+  handles = Controls('SwitchCamera', handles);
+  handles = Controls('MoveStageToCamera', handles);
+  
+  % Set the laser states
+  if ~isa(handles.probeLaserController, 'Probe_Control')
+    error('Invalid handle for probe laser controller!');
+  end
+  if ~isa(handles.pumpLaserController, 'Pump_Control')
+    error('Invalid handle for pump laser controller!');
+  end
+  handles.probeLaserPower = false;
+  handles.pumpLaserPower = false;
+  UpdateRun(handles);
+  
+  % Create the LED controls
+  handles.ProbeLaserOffLED = ImageToggle(handles.ProbeLaserOffLED, handles.settings.redOn, handles.settings.redOff);
+  handles.ProbeLaserOnLED = ImageToggle(handles.ProbeLaserOnLED, handles.settings.greenOn, handles.settings.greenOff);
+  handles.PumpLaserOffLED = ImageToggle(handles.PumpLaserOffLED, handles.settings.redOn, handles.settings.redOff);
+  handles.PumpLaserOnLED = ImageToggle(handles.PumpLaserOnLED, handles.settings.greenOn, handles.settings.greenOff);
+  
 end
 
 
@@ -240,4 +301,60 @@ end
 function array = SampleInfoLinear2Array(linear)
 % Convert a string with literal newline characters into a cell array
   array = char(strtrim(strsplit(linear, {'\\n'})));
+end
+
+
+function handles = UpdateLaserStates(handles, laser)
+% Update the LED indicator lights and equipment
+  switch laser
+    case 'Probe'
+      handles.probeLaserPower = ~handles.probeLaserPower;
+      if handles.probeLaserPower
+        state = 'On';
+        antistate = 'Off';
+        handles.ProbeLaserOffLED.SetState(false);
+        handles.ProbeLaserOnLED.SetState(true);
+        handles.probeLaserController.TurnOn();
+      else
+        state = 'Off';
+        antistate = 'On';
+        handles.ProbeLaserOffLED.SetState(true);
+        handles.ProbeLaserOnLED.SetState(false);
+        handles.probeLaserController.TurnOff();
+      end
+      set(handles.ProbeLaserOffText, 'Enable', antistate);
+      set(handles.ProbeLaserOnText, 'Enable', state);
+      
+    case 'Pump'
+      handles.pumpLaserPower = ~handles.pumpLaserPower;
+      if handles.pumpLaserPower
+        state = 'On';
+        antistate = 'Off';
+        handles.PumpLaserOffLED.SetState(false);
+        handles.PumpLaserOnLED.SetState(true);
+        handles.pumpLaserController.TurnOn();
+      else
+        state = 'Off';
+        antistate = 'On';
+        handles.PumpLaserOffLED.SetState(true);
+        handles.PumpLaserOnLED.SetState(true);
+        handles.pumpLaserController.TurnOff();
+      end
+      set(handles.PumpLaserOffText, 'Enable', antistate);
+      set(handles.PumpLaserOnText, 'Enable', state);
+  end
+  
+  UpdateRun(handles);
+end
+
+
+function UpdateRun(handles)
+% Enable/disable the "Run" button depending on the laser states
+  if handles.probeLaserPower && handles.pumpLaserPower
+    state = 'On';
+  else
+    state = 'Off';
+  end
+  
+  set(handles.RunScanButton, 'Enable', state);
 end

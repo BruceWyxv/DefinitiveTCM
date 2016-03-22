@@ -1,9 +1,9 @@
 classdef ESP300_Control < GPIB_Interface
-% Provides commands for interfacing with the EXP300 stage controller
+% Provides commands for interfacing with the ESP300 stage controller
 %
-% Control of the ESP300 is simplified by abstracting the confusing and
-% difficult-to-remember two-character command strings behind
-% easy-to-remember function names. Thus, instead of directly sending the
+% Control of the ESP300 is simplified by implementing the confusing and
+% difficult-to-remember two-character command strings as
+% easy-to-remember member functions. Thus, instead of directly sending the
 % command "1PA0.0" to move axis 1 to the absolute position of 0.0, the
 % function MoveToAbsolute(1, 0.0) is used.
   

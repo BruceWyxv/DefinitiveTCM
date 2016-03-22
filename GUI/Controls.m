@@ -66,6 +66,8 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     parser.addParameter('preferences', '', @isstruct);
     parser.addParameter('settings', '', @isstruct);
     parser.addParameter('stageController', '', @(x) isa(x, 'ESP300_Control'));
+    parser.addOptional('probeLaserController', '');
+    parser.addOptional('pumpLaserController', '');
     % Parse the input arguments
     parser.KeepUnmatched = true;
     try
@@ -77,6 +79,8 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     handles.addOn = parser.Results.addOn;
     handles.cameras = parser.Results.cameras;
     handles.preferences = parser.Results.preferences;
+    handles.probeLaserController = parser.Results.probeLaserController;
+    handles.pumpLaserController = parser.Results.pumpLaserController;
     handles.settings = parser.Results.settings;
     handles.stageController = parser.Results.stageController;
   end
@@ -88,25 +92,25 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.currentCameraFeed = '';
   
   % Set some parameters
-  handles.stageRanges = [handles.settings.SampleBoundaries.x ...
-                         handles.settings.SampleBoundaries.y ...
-                         handles.settings.SampleBoundaries.z];
+  handles.stageRanges = [handles.settings.StageController.xTravelRange ...
+                         handles.settings.StageController.yTravelRange ...
+                         handles.settings.StageController.zTravelRange];
   set(handles.XEdit, 'String', '0');
   set(handles.YEdit, 'String', '0');
   set(handles.ZEdit, 'String', '0');
   
   % Show only controls for available stages
-  if handles.stageController.IsValidAxis(handles.settings.xAxisID)
+  if handles.stageController.IsValidAxis(handles.settings.StageController.xAxisID)
     xState = 'on';
   else
     xState = 'off';
   end
-  if handles.stageController.IsValidAxis(handles.settings.yAxisID)
+  if handles.stageController.IsValidAxis(handles.settings.StageController.yAxisID)
     yState = 'on';
   else
     yState = 'off';
   end
-  if handles.stageController.IsValidAxis(handles.settings.zAxisID)
+  if handles.stageController.IsValidAxis(handles.settings.StageController.zAxisID)
     zState = 'on';
   else
     zState = 'off';
@@ -151,12 +155,16 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 end
 
 
-function ControlsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+function ControlsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to ControlsWindow (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
   if isequal(get(hObject, 'waitstatus'), 'waiting')
+    % Allow the add-on modules to clean up as needed
+    addOnHandle = str2func(handles.addOn.Tag);
+    addOnHandle('CleanUpForClose', handles);
+  
     uiresume(hObject);
   else
     delete(hObject);
@@ -479,7 +487,7 @@ end
 function [stagePosition, x, y, z] = DetermineStagePosition(handles)
 % Attempts to determine the current stage position from the absolute
 % coordinates of the stages
-  coordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.xAxisID, handles.settings.yAxisID, handles.settings.zAxisID]);
+  coordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.StageController.xAxisID, handles.settings.StageController.yAxisID, handles.settings.StageController.zAxisID]);
   locations = handles.settings.PositionLocations;
   boundaries = handles.settings.SampleBoundaries;
   fields = fieldnames(locations);
@@ -654,9 +662,9 @@ function handles = MoveStageToCamera(handles)  %#ok<DEFNU>
   cameraOrigin = GetOrigin(handles.CameraPosition, handles.settings.PositionLocations);
   new = current + cameraOrigin;
   % Move the axis, showing a progress bar
-  handles.stageController.MoveAxis(handles.settings.xAxisID, new(1), true);
-  handles.stageController.MoveAxis(handles.settings.yAxisID, new(2), true);
-  handles.stageController.MoveAxis(handles.settings.zAxisID, new(3), true);
+  handles.stageController.MoveAxis(handles.settings.StageController.xAxisID, new(1), true);
+  handles.stageController.MoveAxis(handles.settings.StageController.yAxisID, new(2), true);
+  handles.stageController.MoveAxis(handles.settings.StageController.zAxisID, new(3), true);
 
   % The stage should now be in the camera's field-of-view
   handles.StagePosition = handles.CameraPosition;
@@ -679,13 +687,13 @@ function MoveStageToSliderPosition(axis, slider, handles)
   relativePosition = ConvertSlider2Position(slider, handles.stageRanges(axis));
   switch axis
     case 1
-      relativeAxis = handles.settings.xAxisID;
+      relativeAxis = handles.settings.StageController.xAxisID;
       
     case 2
-      relativeAxis = handles.settings.yAxisID;
+      relativeAxis = handles.settings.StageController.yAxisID;
       
     case 3
-      relativeAxis = handles.settings.zAxisID;
+      relativeAxis = handles.settings.StageController.zAxisID;
   end
   absolutePosition = origin + relativePosition;
   handles.stageController.MoveAxis(relativeAxis, absolutePosition);
