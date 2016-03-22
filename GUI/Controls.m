@@ -84,10 +84,8 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   % Initialize the camera view
   axes(handles.CameraView)
   handles.CameraView = image(zeros(640, 480, 3));
+  handles.CameraView.UIContextMenu = handles.CameraViewContextMenu;
   handles.currentCameraFeed = '';
-  
-  % Load the add-on
-  handles = LoadAddOn(hObject, handles);
   
   % Set some parameters
   handles.stageRanges = [handles.settings.SampleBoundaries.x ...
@@ -96,9 +94,34 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   set(handles.XEdit, 'String', '0');
   set(handles.YEdit, 'String', '0');
   set(handles.ZEdit, 'String', '0');
-  UpdateEdit2Slider(handles.XEdit, 1, handles.XSlider, handles.stageRanges(1), handles);
-  UpdateEdit2Slider(handles.YEdit, 2, handles.YSlider, handles.stageRanges(2), handles);
-  UpdateEdit2Slider(handles.ZEdit, 3, handles.ZSlider, handles.stageRanges(3), handles);
+  
+  % Show only controls for available stages
+  if handles.stageController.IsValidAxis(handles.settings.xAxisID)
+    xState = 'on';
+  else
+    xState = 'off';
+  end
+  if handles.stageController.IsValidAxis(handles.settings.yAxisID)
+    yState = 'on';
+  else
+    yState = 'off';
+  end
+  if handles.stageController.IsValidAxis(handles.settings.zAxisID)
+    zState = 'on';
+  else
+    zState = 'off';
+  end
+  set(handles.XAxisGroup, 'Visible', xState);
+  set(handles.YAxisGroup, 'Visible', yState);
+  set(handles.ZAxisGroup, 'Visible', zState);
+  
+  % Load the add-on
+  handles = LoadAddOn(hObject, handles);
+  
+  % Ensure the sliders are updated
+  UpdateEdit2Slider(handles.XEdit, handles.XSlider, handles.stageRanges(1));
+  UpdateEdit2Slider(handles.YEdit, handles.YSlider, handles.stageRanges(2));
+  UpdateEdit2Slider(handles.ZEdit, handles.ZSlider, handles.stageRanges(3));
   
   % Add listners so that dragging the sliders also updates the edit boxes,
   % but do not move the stages yet. Wait until the user has released the
@@ -234,7 +257,8 @@ function XEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of XEdit as text
 %        str2double(get(hObject,'String')) returns contents of XEdit as a double
-  UpdateEdit2Slider(hObject, 1, handles.XSlider, handles.stageRanges(1), handles);
+  UpdateEdit2Slider(hObject, handles.XSlider, handles.stageRanges(1));
+  MoveStageToSliderPosition(hObject, handles.XSlider, handles);
 end
 
 
@@ -304,7 +328,8 @@ function YEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of YEdit as text
 %        str2double(get(hObject,'String')) returns contents of YEdit as a double
-  UpdateEdit2Slider(hObject, 2, handles.YSlider, handles.stageRanges(2), handles);
+  UpdateEdit2Slider(hObject, handles.YSlider, handles.stageRanges(2));
+  MoveStageToSliderPosition(hObject, handles.YSlider, handles);
 end
 
 
@@ -374,7 +399,8 @@ function ZEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of ZEdit as text
 %        str2double(get(hObject,'String')) returns contents of ZEdit as a double
-  UpdateEdit2Slider(hObject, 3, handles.ZSlider, handles.stageRanges(3), handles);
+  UpdateEdit2Slider(hObject, handles.ZSlider, handles.stageRanges(3));
+  MoveStageToSliderPosition(hObject, handles.ZSlider, handles);
 end
 
 
@@ -447,6 +473,44 @@ function stagePosition = ConvertSlider2Position(slider, stageRange)
   sliderMax = get(slider, 'Max');
   sliderRatio = (sliderPosition - sliderMin) / (sliderMax - sliderMin);
   stagePosition = sliderRatio * stageRange;
+end
+
+
+function [stagePosition, x, y, z] = DetermineStagePosition(handles)
+% Attempts to determine the current stage position from the absolute
+% coordinates of the stages
+  coordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.xAxisID, handles.settings.yAxisID, handles.settings.zAxisID]);
+  locations = handles.settings.PositionLocations;
+  boundaries = handles.settings.SampleBoundaries;
+  fields = fieldnames(locations);
+  position = -1;
+  stagePosition = '';
+  
+  for i = 1:length(fields)
+    location = locations.(char(fields(i)));
+    x = coordinates(1) - location(1);
+    y = coordinates(2) - location(2);
+    z = coordinates(3) - location(3);
+    if x >= 0 && x <= boundaries.x && y >=0 && y <= boundaries.y
+      position = i;
+      break;
+    else
+      x = 0;
+      y = 0;
+      z = 0;
+    end
+  end
+  
+  switch position
+    case 1
+      stagePosition = 'SampleLoading';
+      
+    case 2
+      stagePosition = 'WideImage';
+      
+    case 3
+      stagePosition = 'ScanningObjective';
+  end
 end
 
 
@@ -546,6 +610,16 @@ function handles = LoadAddOn(figure, handles)
   name = handles.addOn.Name;
   set(figure, 'Name', name);
   
+  % Attempt to determine the stage position if it is currently unknown
+  if ~isfield(handles, 'StagePosition') || isempty(handles.StagePosition)
+    [handles.StagePosition, x, y, z] = DetermineStagePosition(handles);
+    if ~isempty(handles.StagePosition)
+      set(handles.XEdit, 'String', num2str(x));
+      set(handles.YEdit, 'String', num2str(y));
+      set(handles.ZEdit, 'String', num2str(z));
+    end
+  end
+  
   % Initialize any controls created
   addOnHandle = str2func(handles.addOn.Tag);
   handles = addOnHandle('InitializeChildren', handles);
@@ -565,7 +639,7 @@ function handles = LoadControls(handles, parent, controls)
 end
 
 
-function handles = MoveStageToCamera(handles) %#ok<DEFNU>
+function handles = MoveStageToCamera(handles)  %#ok<DEFNU>
   % First, open a modal progress bar while we are moving the stage. We
   % don't want the user to be able to change anything until the stage
   % movement is complete. Also, disable the close functionality (a user
@@ -755,7 +829,7 @@ function UpdateControlSystem(handles)
 end
 
 
-function UpdateEdit2Slider(edit, axis, slider, stageRange, handles)
+function UpdateEdit2Slider(edit, slider, stageRange)
 % Updates the values of the sliders according to the values entered in the
 % edit boxes. Also sanitizes the input.
   [value, clean] = SanitizeEdit(edit, stageRange);
@@ -766,8 +840,6 @@ function UpdateEdit2Slider(edit, axis, slider, stageRange, handles)
   sliderValue = stageRatio * (sliderMax - sliderMin) + sliderMin;
   set(slider, 'Value', sliderValue);
   set(edit, 'String', clean);
-  
-  MoveStageToSliderPosition(axis, slider, handles);
 end
 
 

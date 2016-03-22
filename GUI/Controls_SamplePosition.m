@@ -84,7 +84,7 @@ function LinkStageToCameraCheckbox_Callback(hObject, eventdata, handles) %#ok<DE
 % handles    structure with handles and user data (see GUIDATA)
 
   % Hint: get(hObject,'Value') returns toggle state of LinkStageToCameraCheckbox
-  handles = LinkCheckbox(handles);
+  handles = UpdateLinkCheckbox(handles);
   guidata(hObject, handles);
 end
 
@@ -94,6 +94,7 @@ function MoveStageToCameraButton_Callback(hObject, eventdata, handles) %#ok<DEFN
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
   handles = Controls('MoveStageToCamera', handles);
+  handles = UpdateLinkCheckbox(handles);
   guidata(hObject, handles);
 end
 
@@ -104,31 +105,34 @@ end
 function handles = InitializeChildren(handles) %#ok<DEFNU>
 % Initializes the states of any child controls, called by the main
 % ControlsGUI
-  % TODO Detect where the sample is and choose the appropriate camera - BEGIN
-  set(handles.SampleLoadPositionRadio, 'Value', 1);
-  handles.CameraPosition = 'SampleLoading';
-  handles.StagePosition = '';
-  % TODO Detect where the sample is and choose the appropriate camera - END
-  
-  % Set the stage <-> camera link checkbox
+  % Set the stage <-> camera link checkbox from the stored preference value
   set(handles.LinkStageToCameraCheckbox, 'Value', handles.preferences.PositionSample.linkStageToCamera);
-  handles = UpdateCameraSelectionGroup(handles);
-  handles = LinkCheckbox(handles);
-end
 
-
-function handles = LinkCheckbox(handles)
-% Update GUI based on the state of the LinkStageToCamera checkbox
-  value = get(handles.LinkStageToCameraCheckbox, 'Value');
-  if value == 1
-    state = 'off';
-  else
-    state = 'on';
-  end
-  set(handles.MoveStageToCameraButton, 'Enable', state);
+  % Default the camera position to the Sample Loading position
+  handles.CameraPosition = 'SampleLoading';
   
-  % Update the preferences
-  handles.preferences.PositionSample.linkStageToCamera = value;
+  % Initialize the position controls
+  if isempty(handles.StagePosition);
+    % The stage is in an invalid state, deselect all positions radio
+    % buttons
+    set(findall(handles.CameraSelectionGroup, '-property', 'Value'), 'Value', 0);
+  else
+    % We are linked, so use the stage position
+    handles.CameraPosition = handles.StagePosition;
+    switch handles.CameraPosition
+      case 'SampleLoading'
+        set(handles.SampleLoadPositionRadio, 'Value', 1);
+        
+      case 'WideImage'
+        set(handles.WideImagePositionRadio, 'Value', 1);
+        
+      case 'ScanningObjective'
+        set(handles.ScanObjectivePositionRadio, 'Value', 1);
+    end
+  end
+  
+  % Update the system
+  handles = UpdateCameraSelectionGroup(handles);
 end
 
 
@@ -156,7 +160,38 @@ function handles = UpdateCameraSelectionGroup(handles, data)
   handles = Controls('SwitchCamera', handles);
   
   % Check if we need to reposition the stage
-  if get(handles.MoveStageToCameraButton, 'Value') == 0 || strcmp(handles.CameraPosition, handles.StagePosition)
+  if get(handles.LinkStageToCameraCheckbox, 'Value') == 1 && ~strcmp(handles.CameraPosition, handles.StagePosition)
+    % The stage position and camera view are different, and the stage
+    % position is linked to the camera view, so move the stage
     handles = Controls('MoveStageToCamera', handles);
   end
+  
+  % Set the link checkbox to a valid state
+  handles = UpdateLinkCheckbox(handles);
+end
+
+
+function handles = UpdateLinkCheckbox(handles)
+% Update GUI based on the state of the LinkStageToCamera checkbox
+  value = get(handles.LinkStageToCameraCheckbox, 'Value');
+  if value == 1
+    state = 'off';
+  else
+    state = 'on';
+  end
+  set(handles.MoveStageToCameraButton, 'Enable', state);
+  
+  % Check if the stage can be linked to the camera
+  if strcmp(handles.CameraPosition, handles.StagePosition)
+    % The stage position and camera view are at the same location, ensure
+    % that the link checkbox is enabled
+    set(handles.LinkStageToCameraCheckbox, 'Enable', 'on');
+  else
+    % The stage position and camera view are at different locations, so
+    % disable the link ability
+    set(handles.LinkStageToCameraCheckbox, 'Enable', 'off');
+  end
+  
+  % Update the preferences
+  handles.preferences.PositionSample.linkStageToCamera = value;
 end

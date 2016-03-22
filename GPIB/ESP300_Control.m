@@ -61,6 +61,27 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
+    function coordinates = GetAbsoluteCoordinates(myself, axis)
+    % Get the absolute coordinates of the requested axis
+      coordinates = str2double(myself.Query(axis, 'PA'));
+    end
+    
+    function valid = IsValidAxis(myself, axis)
+    % Checks the value of 'axis' and determines if it is a valid axis
+    % argument
+      if ~isnumeric(axis)
+        warning('ESP300_Control:InvalidAxis', 'Invalid axis of type "%s"\nAn integer is required. Command ignored.\n', class(axis));
+        valid = false;
+      elseif axis < 1 || axis > myself.maxStages
+        warning('ESP300_Control:InvalidAxis', 'Invalid axis identifier "%i"\nMust be between 1 and %i. Command ignored.\n', axis, myself.maxStages);
+        valid = false;
+      elseif ~myself.activeStages(axis)
+        valid = false;
+      else
+        valid = true;
+      end
+    end
+    
     function MoveAxis(myself, axis, position, progressBar)
     % Move the specified axis to the desired position. Optionally display a
     % progress bar if requested.
@@ -253,23 +274,6 @@ classdef ESP300_Control < GPIB_Interface
   
   % Define methods with access by this class only
   methods (Access = private)
-    function valid = IsValidAxis(myself, axis)
-    % Checks the value of 'axis' and determines if it is a valid axis
-    % argument
-      if ~isnumeric(axis)
-        warning('ESP300_Control:InvalidAxis', 'Invalid axis of type "%s"\nAn integer is required. Command ignored.\n', class(axis));
-        valid = false;
-      elseif axis < 1 || axis > myself.maxStages
-        warning('ESP300_Control:InvalidAxis', 'Invalid axis identifier "%i"\nMust be between 1 and %i. Command ignored.\n', axis, myself.maxStages);
-        valid = false;
-      elseif ~myself.activeStages(axis)
-        %warning('ESP300_Control:InactiveAxis', 'Axis "%i" is not currently active.\n', axis);
-        valid = false;
-      else
-        valid = true;
-      end
-    end
-    
     function delete(myself)
     % Turns off the stage motors
       for i = 1:3

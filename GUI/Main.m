@@ -275,12 +275,12 @@ function UpdateInitializationFiles(handles)
   % Check to see if the settings have been modified
   if ~isequal(handles.settings, handles.old.Settings);
     struct2ini(handles.settingsFile, handles.settings);
-    fprintf('Modified settings detected. Changes have been saved to ''%s''', handles.settingsFile);
+    fprintf('Modified settings detected. Changes have been saved to ''%s''\n', handles.settingsFile);
   end
   
   % Check to see if the preferences have been modified
   if ~isequal(handles.preferences, handles.old.Preferences);
     struct2ini(handles.preferencesFile, handles.preferences);
-    fprintf('Modified preferences detected. Changes have been saved to ''%s''', handles.preferencesFile);
+    fprintf('Modified preferences detected. Changes have been saved to ''%s''\n', handles.preferencesFile);
   end
 end
