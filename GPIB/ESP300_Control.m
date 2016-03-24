@@ -16,16 +16,13 @@ classdef ESP300_Control < GPIB_Interface
   end
   
   methods
-    function myself = ESP300_Control(address, name, homeStages)
+    function myself = ESP300_Control(address, xLimits, yLimits, zLimits, name)
     % Construct this class and call the superclass constructor to initialze
     % the interface to the device
-      if nargin == 1
+      if nargin == 4
         name = GPIB_Interface.GetUnknownDeviceName();
       end
       myself@GPIB_Interface(address, name);
-      if nargin < 3
-        homeStages = true;
-      end
       
       % Turn on the system and check for active stages
       myself.activeStages = [1 1 1]; % Assume all stages are active
@@ -36,12 +33,17 @@ classdef ESP300_Control < GPIB_Interface
       approveHome = 'ask';
       for i = 1:3
         if myself.activeStages(i)
-          if homeStages && (strcmp(approveHome, 'ask') || strcmp(approveHome, 'yes'))
+          if (strcmp(approveHome, 'ask') || strcmp(approveHome, 'yes'))
             approveHome = myself.HomeAxis(i, approveHome);
             myself.WaitForAction(i);
           end
         end
       end
+      
+      % Set the travel limits
+      myself.SetStageLimits(xLimits(1), xLimits(2:3));
+      myself.SetStageLimits(yLimits(1), yLimits(2:3));
+      myself.SetStageLimits(zLimits(1), zLimits(2:3));
     end
     
     function Beep(myself, varargin)
@@ -255,6 +257,33 @@ classdef ESP300_Control < GPIB_Interface
         end
         reply{a} = GPIB_Interface.Communicate(myself, sprintf('%i%s?', axis(a), command));
       end
+    end
+    
+    function SetStageLimits(myself, axis, limits)
+    % Sets the travel limits of an axis
+      if limits(1) > limits(2)
+        temp = limits(1);
+        limits(1) = limits(2);
+        limits(2) = temp;
+      end
+      
+      % If needed, move the stage to within the limits
+      % TODO maybe comfirm with the user before moving stage?
+      position = str2double(myself.Query(axis, 'PA'));
+      if position < limits(1)
+        myself.MoveAxis(axis, limits(1));
+      elseif position > limits(2)
+        myself.MoveAxis(axis, limits(2));
+      end
+      myself.WaitForAction(axis);
+      
+      % Set the limits
+      % Configure the controller. 5H is hexadecimal code for:
+      %   1) enable limit checking (bit 0)
+      %   2) abort motion if limit exceeded (bit 2)
+      myself.Command(axis, 'ZS 5H');
+      myself.Command(axis, 'SL', limits(1));
+      myself.Command(axis, 'SR', limits(2));
     end
     
     function TurnOffMotor(myself, axis)

@@ -102,6 +102,10 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
+function CleanUpForClose(handles) %#ok<INUSD,DEFNU>
+end
+
+
 function handles = InitializeChildren(handles) %#ok<DEFNU>
 % Initializes the states of any child controls, called by the main
 % ControlsGUI

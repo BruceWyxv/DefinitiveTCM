@@ -37,8 +37,9 @@ function struct = ini2struct(FileName)
         value = strtok(value, '"');
       elseif value(1) == ''''
         value = strtok(value, '''');
-      else
-        % Assume it is a number
+      elseif isempty(regexp(value, '[^\d\.eE\+\-\s]*', 'once'))
+        % The regex expression should filter out everything that may cause
+        % undesireable behavior with str2num()
         [tempValue, status] = str2num(value); %#ok<ST2NM>
         if status
           value = tempValue;

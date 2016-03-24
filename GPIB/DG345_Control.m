@@ -12,6 +12,7 @@ classdef DG345_Control < GPIB_Interface
   properties (SetAccess = private, GetAccess = public)
     frequency;
     offset;
+    power;
     voltage;
   end
   
@@ -28,6 +29,10 @@ classdef DG345_Control < GPIB_Interface
       GPIB_Interface.Communicate(myself, 'FUNC 0');
       % Ensure signal inversion is off
       GPIB_Interface.Communicate(myself, 'INVT 0');
+      
+      % Set the intial conditions
+      myself.SetFrequency(1e3);
+      myself.SetPower(0);
     end
     
     function SetFrequency(myself, frequency)
@@ -36,6 +41,21 @@ classdef DG345_Control < GPIB_Interface
       myself.frequency = frequency;
     end
     
+    function SetPower(myself, power)
+    % Sets the laser power, on a scale from 0 to 100
+      if power < 0
+        power = 0;
+      elseif power > 100
+        power = 100;
+      end
+      
+      voltagePP = (myself.maxVoltage - myself.minVoltage) * (power / 100) + myself.minVoltage;
+      myself.SetVoltage(voltagePP);
+      myself.power = power;
+    end
+  end
+  
+  methods (Access = protected)
     function SetVoltage(myself, voltage)
     % Sets the maximum voltage of the output
       if voltage > myself.maxVoltage
@@ -67,5 +87,11 @@ classdef DG345_Control < GPIB_Interface
     end
   end
   
+  methods (Access = private)
+    function delete(myself)
+    % Turns off the laser
+      myself.SetPower(0);
+    end
+  end
 end
 

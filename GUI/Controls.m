@@ -54,7 +54,7 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 % varargin   unrecognized PropertyName/PropertyValue pairs from the
 %            command line (see VARARGIN)
 
-  % Choose default command line output for PositionSample
+  % Choose default command line output for Controls
   handles.output = hObject;
   movegui(hObject, 'center');
   
@@ -92,9 +92,9 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.currentCameraFeed = '';
   
   % Set some parameters
-  handles.stageRanges = [handles.settings.StageController.xTravelRange ...
-                         handles.settings.StageController.yTravelRange ...
-                         handles.settings.StageController.zTravelRange];
+  handles.stageRanges = [handles.settings.SampleBoundaries.x ...
+                         handles.settings.SampleBoundaries.y ...
+                         handles.settings.SampleBoundaries.z];
   set(handles.XEdit, 'String', '0');
   set(handles.YEdit, 'String', '0');
   set(handles.ZEdit, 'String', '0');

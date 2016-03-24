@@ -25,7 +25,7 @@ classdef ImageToggle
       myself.control = control;
       
       % Get the background color of the control for blending purposes
-      background = uint8(get(control, 'color') * 255);
+      background = uint8(get(control, 'BackgroundColor') * 255);
       
       % Load the image files
       [fullImageOn, ~, fullAlphaOn] = imread(onImageFile);

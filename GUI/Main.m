@@ -76,13 +76,13 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   % with a handle to the controlling class
   %   TODO: Figure out how to get the LEDOff and LEDOn elements to not
   %   receive keyboard focus when tabbing to select
-  handles.LEDOn = ImageToggle(handles.LEDOn, handles.settings.greenOn, handles.settings.greenOff);
-  handles.LEDOff = ImageToggle(handles.LEDOff, handles.settings.redOn, handles.settings.redOff);
+  handles.LEDOn = ImageToggle(handles.LEDOn, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
+  handles.LEDOff = ImageToggle(handles.LEDOff, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
 
   % Set initial states
   handles.power = false;
   handles = CascadeActionPower(handles);
-  imshow(TCMLogo);
+  imshow(handles.settings.TCMLogo);
 
   % Update handles structure
   movegui(hObject, 'center');
@@ -198,22 +198,39 @@ function handles = CascadeActionPower(handles)
   % Connect to, or disconnect, from the hardware
   try
     if handles.power
+      % Set up the cameras and Matrox device
       handles.cameras.load = videoinput('matrox', handles.settings.ImageAcquisition.loadDigitizer);
       handles.cameras.wide = videoinput('matrox', handles.settings.ImageAcquisition.wideDigitizer);
       handles.cameras.scan = videoinput('matrox', handles.settings.ImageAcquisition.scanDigitizer);
       handles.cameras.load.SelectedSource = handles.settings.ImageAcquisition.loadChannel;
       handles.cameras.wide.SelectedSource = handles.settings.ImageAcquisition.wideChannel;
       handles.cameras.scan.SelectedSource = handles.settings.ImageAcquisition.scanChannel;
-      handles.functionGenerator = DG345_Control(handles.settings.FunctionGenerator.address, 'Function Generator');
-      handles.lockInAmpController = SR830_Control(handles.settings.LockInAmp.address, handles.settings.LockInAmp.amplitudeChannel, handles.settings.LockInAmp.phaseChannel, 'Lock-in Amplifier');
-      handles.stageController = ESP300_Control(handles.settings.StageController.address, 'Stage Controller');
+      
+      % Connect to GPIB devices
+      handles.pumpLaserController =...
+        DG345_Control(handles.settings.FunctionGenerator.address,...
+                      'Function Generator');
+      handles.lockInAmpController =...
+        SR830_Control(handles.settings.LockInAmp.address,...
+                      handles.settings.LockInAmp.amplitudeChannel,...
+                      handles.settings.LockInAmp.phaseChannel,...
+                      'Lock-in Amplifier');
+      handles.stageController =...
+        ESP300_Control(handles.settings.StageController.address,...
+                       [handles.settings.StageController.xAxis handles.settings.SoftStageBoundaries.x],...
+                       [handles.settings.StageController.yAxis handles.settings.SoftStageBoundaries.y],...
+                       [handles.settings.StageController.zAxis handles.settings.SoftStageBoundaries.z],...
+                       'Stage Controller');
+      handles.probeLaserController =...
+        ProbeLaser_Control(handles.lockInAmpController);
       % TODO: Set the maximum travel ranges of the stages from the
-      % handles.settings.StageController.<axis>TravelRange values
+      % handles.settings.SoftStageBoundaries.<axis> values
+      
     else
       handles.cameras.load = '';
       handles.cameras.wide = '';
       handles.cameras.scan = '';
-      handles.functionGenerator = '';
+      handles.pumpLaserController = '';
       handles.lockInAmpController = '';
       handles.stageController = '';
     end

@@ -26,7 +26,7 @@ classdef SR830_Control < GPIB_Interface
       
       database = Database();
       myself.valueOfTimeConstantIndex = @database.GetLockInAmpTimeConstant;
-      myself.indexOfTimeConstant = @database.GetIndexOfLockInAmpTimeConstant;
+      myself.indexOfTimeConstantValue = @database.GetIndexOfLockInAmpTimeConstant;
       myself.initialTimeConstantIndex = myself.GetTimeConstantIndex();
       myself.amplitudeChannel = amplitudeChannel;
       myself.phaseChannel = phaseChannel;
@@ -86,7 +86,7 @@ classdef SR830_Control < GPIB_Interface
     function delete(myself)
     % Prepare the class for deletion by resetting the device to its initial
     % state
-      myself.SetTimeConstantIndex(myself.intialTimeConstant);
+      myself.SetTimeConstantIndex(myself.initialTimeConstantIndex);
     end
   end
 end
