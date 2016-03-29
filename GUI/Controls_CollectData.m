@@ -83,7 +83,7 @@ function ProbeLaserButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
   handles = UpdateLaserStates(handles, 'Probe');
-  guidate(hObject, handles);
+  guidata(hObject, handles);
 end
 
 
@@ -93,7 +93,7 @@ function PumpLaserButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
   handles = UpdateLaserStates(handles, 'Pump');
-  guidate(hObject, handles);
+  guidata(hObject, handles);
 end
 
 
@@ -105,10 +105,22 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
   savePath = CheckPath(handles);
   sampleInfo = SampleInfoArray2Linear(handles.sampleInfo);
   
+  % Initialize the laser system
+  FocusSample(handles);
+  CenterLasers(handles);
   
-  handles.preferences.CollectData.savePath = savePath;
-  handles.preferences.CollectData.sampleInfo = sampleInfo;
-  guidata(hObject,handles);
+  try
+    % Collect and save the data
+    data = CollectData(handles); %#ok<NASGU>
+    save(savePath, '-struct', 'data');
+
+    % Update the preferences
+    handles.preferences.CollectData.savePath = savePath;
+    handles.preferences.CollectData.sampleInfo = sampleInfo;
+    guidata(hObject,handles);
+  catch
+    % Nothing here yet
+  end
 end
 
 
@@ -265,10 +277,10 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   handles = Controls('MoveStageToCamera', handles);
   
   % Set the laser states
-  if ~isa(handles.probeLaserController, 'Probe_Control')
+  if ~isa(handles.probeLaserController, 'ProbeLaser_Control')
     error('Invalid handle for probe laser controller!');
   end
-  if ~isa(handles.pumpLaserController, 'Pump_Control')
+  if ~isa(handles.pumpLaserController, 'DG345_Control')
     error('Invalid handle for pump laser controller!');
   end
   handles.probeLaserPower = false;
@@ -276,11 +288,10 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   UpdateRun(handles);
   
   % Create the LED controls
-  handles.ProbeLaserOffLED = ImageToggle(handles.ProbeLaserOffLED, handles.settings.redOn, handles.settings.redOff);
-  handles.ProbeLaserOnLED = ImageToggle(handles.ProbeLaserOnLED, handles.settings.greenOn, handles.settings.greenOff);
-  handles.PumpLaserOffLED = ImageToggle(handles.PumpLaserOffLED, handles.settings.redOn, handles.settings.redOff);
-  handles.PumpLaserOnLED = ImageToggle(handles.PumpLaserOnLED, handles.settings.greenOn, handles.settings.greenOff);
-  
+  handles.ProbeLaserOffLED = ImageToggle(handles.ProbeLaserOffLED, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
+  handles.ProbeLaserOnLED = ImageToggle(handles.ProbeLaserOnLED, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
+  handles.PumpLaserOffLED = ImageToggle(handles.PumpLaserOffLED, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
+  handles.PumpLaserOnLED = ImageToggle(handles.PumpLaserOnLED, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
 end
 
 
@@ -332,13 +343,13 @@ function handles = UpdateLaserStates(handles, laser)
         antistate = 'Off';
         handles.PumpLaserOffLED.SetState(false);
         handles.PumpLaserOnLED.SetState(true);
-        handles.pumpLaserController.TurnOn();
+        handles.pumpLaserController.SetPower(100);
       else
         state = 'Off';
         antistate = 'On';
         handles.PumpLaserOffLED.SetState(true);
         handles.PumpLaserOnLED.SetState(true);
-        handles.pumpLaserController.TurnOff();
+        handles.pumpLaserController.SetPower(0);
       end
       set(handles.PumpLaserOffText, 'Enable', antistate);
       set(handles.PumpLaserOnText, 'Enable', state);

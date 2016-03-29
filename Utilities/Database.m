@@ -3,8 +3,10 @@
 % Date Created: 09/??/2015
 %
 % Usage:        handle        = Database()
+%               index         = <handle>.GetIndexOfLockInAmpSensitivityConstant(<sensitivityConstant>)
 %               index         = <handle>.GetIndexOfLockInAmpTimeConstant(<timeConstant>)
-%               timeConstant  = <handle>.GetLockInAmpTimeConstants(index)
+%               sensitivityConstant  = <handle>.GetLockInAmpSensitivityConstant(index)
+%               timeConstant  = <handle>.GetLockInAmpTimeConstant(index)
 %               spotSize      = <handle>.GetSpotSizeFromMagnification(<mag>)
 %               thermalProps  = <handle>.GetThermalProperties(<material>)
 %               materials     = <handle>.ListMaterials()
@@ -13,9 +15,10 @@
 %               <mag>           Magnification of the optical lens
 %               <material>      String name of material
 %               <thermalProps>  Structure of material, k, d, and rho
+%               <sensitivityConstant>  Lock-in amp sensitivity constant
 %               <timeConstant>  Lock-in amp time constant
 % Outputs:      handle          Object handle to the database object
-%               index           Index of lock-in amp time constant
+%               index           Index of lock-in amp constant
 %               materials       A cell array of material names
 %               spotSize        Size of the focused laser beam
 %               thermalProps    Structure of material, k, d, and rho
@@ -36,15 +39,41 @@
 
 function handle = Database()
 % Assign the function handles
+  handle.GetIndexOfLockInAmpSensitivityConstant = @GetIndexOfLockInAmpSensitivityConstant;
   handle.GetIndexOfLockInAmpTimeConstant = @GetIndexOfLockInAmpTimeConstant;
-  handle.GetLockInAmpTimeConstants = @GetLockInAmpTimeConstants;
+  handle.GetLockInAmpSensitivityConstant = @GetLockInAmpSensitivityConstant;
+  handle.GetLockInAmpTimeConstant = @GetLockInAmpTimeConstant;
   handle.GetSpotSizeFromMagnification = @GetSpotSizeFromMagnification;
   handle.GetThermalProperties = @GetThermalProperties;
   handle.ListMaterials = @ListMaterials;
 end
 
 
-function timeConstant = GetLockInAmpTimeConstants(index)
+function sensitivityConstant = GetLockInAmpSensitivityConstant(index)
+% Return the sensitivity constant associated with the index value, as
+% listed in the SRS830 Operating Manual and Programming Reference
+  
+  % Ensure the data is loaded
+  ReadLockInAmpSensitivityConstantsToGlobal()
+  globalDatabase = GlobalDatabase();
+  database = globalDatabase.lockInAmpSensitivityConstants;
+  
+  % Ensure the input argument is valid
+  if ~isnumeric(index)
+    error('Incorrect input type: %s\nInput must be a number!\n', class(material));
+  end
+  
+  % Search for the requested value
+  sensitivityConstant = database.sensitivityConstant(database.index == index);
+  
+  % Check search results
+  if isempty(sensitivityConstant)
+    error('Time constant index ''%i'' not found in database.\nPlease enter a valid index ranging from 0 to 26', index);
+  end
+end
+
+
+function timeConstant = GetLockInAmpTimeConstant(index)
 % Return the time constant associated with the index value, as listed in
 % the SRS830 Operating Manual and Programming Reference
   
@@ -64,6 +93,30 @@ function timeConstant = GetLockInAmpTimeConstants(index)
   % Check search results
   if isempty(timeConstant)
     error('Time constant index ''%i'' not found in database.\nPlease enter a valid index ranging from 0 to 19', index);
+  end
+end
+
+
+function index = GetIndexOfLockInAmpSensitivityConstant(sensitivityConstant)
+% Return the sensitivity constant associated with the index value, as
+% listed in the SRS830 Operating Manual and Programming Reference
+  
+  % Ensure the data is loaded
+  ReadLockInAmpSensitivityConstantsToGlobal()
+  globalDatabase = GlobalDatabase();
+  database = globalDatabase.lockInAmpSensitivityConstants;
+  
+  % Ensure the input argument is valid
+  if ~isnumeric(sensitivityConstant)
+    error('Incorrect input type: %s\nInput must be a number!\n', class(material));
+  end
+  
+  % Search for the requested value
+  index = database.index(database.sensitivityConstant == sensitivityConstant);
+  
+  % Check search results
+  if isempty(index)
+    error('Sensitivity constant ''%g'' not found in database.\nPlease check the "%s" for valid sensitivity constants.', sensitivityConstant, GetDatabaseFile());
   end
 end
 
@@ -182,7 +235,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function databaseFile = GetDatabaseFile()
 % Name/path of the file containing the database
-  databaseFile = 'Database.xlsx';
+  databaseFile = 'Resources/Database.xlsx';
 end
 
 
@@ -204,6 +257,25 @@ function getDatabase = GlobalDatabase(varargin)
     warning('MATLAB:ambiguousSyntax', 'Only one output argument provided!');
   end
 end
+
+
+function ReadLockInAmpSensitivityConstantsToGlobal()
+% Read the time constant to the global database
+  globalDatabase = GlobalDatabase();
+  
+  % Do not reinitialze the data if unneeded
+  if ~isfield(globalDatabase, 'lockInAmpSensitivityConstants')
+    % Read the data and set the global database
+    lockInAmpSensitivityConstants = readtable(GetDatabaseFile(), 'Sheet', 'SRS830SensitivityConstants');
+    globalDatabase.lockInAmpSensitivityConstants = lockInAmpSensitivityConstants;
+    GlobalDatabase(globalDatabase);
+    
+    % Process the database
+    fprintf('Lock-in amp sensitivity constants database loaded from "%s"\n', GetDatabaseFile());
+    fprintf('\tNumber of items found:   \t%i\n', height(lockInAmpSensitivityConstants));
+  end
+end
+
 
 function ReadLockInAmpTimeConstantsToGlobal()
 % Read the time constant to the global database

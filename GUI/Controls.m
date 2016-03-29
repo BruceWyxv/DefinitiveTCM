@@ -266,7 +266,7 @@ function XEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % Hints: get(hObject,'String') returns contents of XEdit as text
 %        str2double(get(hObject,'String')) returns contents of XEdit as a double
   UpdateEdit2Slider(hObject, handles.XSlider, handles.stageRanges(1));
-  MoveStageToSliderPosition(hObject, handles.XSlider, handles);
+  MoveStageToSliderPosition(1, handles.XSlider, handles);
 end
 
 
@@ -337,7 +337,7 @@ function YEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % Hints: get(hObject,'String') returns contents of YEdit as text
 %        str2double(get(hObject,'String')) returns contents of YEdit as a double
   UpdateEdit2Slider(hObject, handles.YSlider, handles.stageRanges(2));
-  MoveStageToSliderPosition(hObject, handles.YSlider, handles);
+  MoveStageToSliderPosition(2, handles.YSlider, handles);
 end
 
 
@@ -408,7 +408,7 @@ function ZEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % Hints: get(hObject,'String') returns contents of ZEdit as text
 %        str2double(get(hObject,'String')) returns contents of ZEdit as a double
   UpdateEdit2Slider(hObject, handles.ZSlider, handles.stageRanges(3));
-  MoveStageToSliderPosition(hObject, handles.ZSlider, handles);
+  MoveStageToSliderPosition(3, handles.ZSlider, handles);
 end
 
 

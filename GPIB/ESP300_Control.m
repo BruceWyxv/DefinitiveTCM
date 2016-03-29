@@ -16,10 +16,10 @@ classdef ESP300_Control < GPIB_Interface
   end
   
   methods
-    function myself = ESP300_Control(address, xLimits, yLimits, zLimits, name)
+    function myself = ESP300_Control(address, homeStages, name)
     % Construct this class and call the superclass constructor to initialze
     % the interface to the device
-      if nargin == 4
+      if nargin == 2
         name = GPIB_Interface.GetUnknownDeviceName();
       end
       myself@GPIB_Interface(address, name);
@@ -33,14 +33,16 @@ classdef ESP300_Control < GPIB_Interface
       approveHome = 'ask';
       for i = 1:3
         if myself.activeStages(i)
-          if (strcmp(approveHome, 'ask') || strcmp(approveHome, 'yes'))
+          if homeStages && (strcmp(approveHome, 'ask') || strcmp(approveHome, 'yes'))
             approveHome = myself.HomeAxis(i, approveHome);
             myself.WaitForAction(i);
           end
         end
       end
-      
-      % Set the travel limits
+    end
+    
+    function SetLimits(myself, xLimits, yLimits, zLimits)
+    % Set the travel limits for the stages
       myself.SetStageLimits(xLimits(1), xLimits(2:3));
       myself.SetStageLimits(yLimits(1), yLimits(2:3));
       myself.SetStageLimits(zLimits(1), zLimits(2:3));
