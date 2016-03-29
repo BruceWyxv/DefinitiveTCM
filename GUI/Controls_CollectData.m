@@ -245,10 +245,9 @@ end
 
 function CleanUpForClose(handles) %#ok<DEFNU>
 % Turn off all the lasers
-  handles.probeLaserPower = false;
   handles.probeLaserController.TurnOff();
-  handles.pumplaserPower = false;
   handles.pumpLaserController.TurnOff();
+  UpdateLaserStates(handles, false);
 end
 
 
@@ -271,11 +270,6 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
     handles.sampleInfo = SampleInfoLinear2Array(handles.preferences.CollectData.sampleInfo);
   end
   
-  % Move the stage and camera to the scanning position
-  handles.CameraPosition = 'ScanningObjective';
-  handles = Controls('SwitchCamera', handles);
-  handles = Controls('MoveStageToCamera', handles);
-  
   % Set the laser states
   if ~isa(handles.probeLaserController, 'ProbeLaser_Control')
     error('Invalid handle for probe laser controller!');
@@ -292,6 +286,14 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   handles.ProbeLaserOnLED = ImageToggle(handles.ProbeLaserOnLED, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
   handles.PumpLaserOffLED = ImageToggle(handles.PumpLaserOffLED, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
   handles.PumpLaserOnLED = ImageToggle(handles.PumpLaserOnLED, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
+  handles = UpdateLaserStates(handles, false);
+  
+  % Move the stage and camera to the scanning position; this is performed
+  % last since it takes the longest and we want the GUI window to show the
+  % inital state correctly
+  handles.CameraPosition = 'ScanningObjective';
+  handles = Controls('SwitchCamera', handles);
+  handles = Controls('MoveStageToCamera', handles);
 end
 
 
@@ -315,44 +317,75 @@ function array = SampleInfoLinear2Array(linear)
 end
 
 
+function handles = ToggleProbeLaser(handles, setPowerState)
+% Change the power state of the probe laser
+  if nargin == 2
+    handles.probeLaserPower = setPowerState;
+  else
+    handles.probeLaserPower = ~handles.probeLaserPower;
+  end
+  
+  if handles.probeLaserPower
+    state = 'On';
+    antistate = 'Off';
+    handles.ProbeLaserOffLED.SetState(false);
+    handles.ProbeLaserOnLED.SetState(true);
+    handles.probeLaserController.TurnOn();
+  else
+    state = 'Off';
+    antistate = 'On';
+    handles.ProbeLaserOffLED.SetState(true);
+    handles.ProbeLaserOnLED.SetState(false);
+    handles.probeLaserController.TurnOff();
+  end
+  
+  set(handles.ProbeLaserOffText, 'Enable', antistate);
+  set(handles.ProbeLaserOnText, 'Enable', state);
+end
+
+
+function handles = TogglePumpLaser(handles, setPowerState)
+% Change the power state of the probe laser
+  if nargin == 2
+    handles.pumpLaserPower = setPowerState;
+  else
+    handles.pumpLaserPower = ~handles.pumpLaserPower;
+  end
+  
+  if handles.pumpLaserPower
+    state = 'On';
+    antistate = 'Off';
+    handles.PumpLaserOffLED.SetState(false);
+    handles.PumpLaserOnLED.SetState(true);
+    handles.pumpLaserController.TurnOn();
+  else
+    state = 'Off';
+    antistate = 'On';
+    handles.PumpLaserOffLED.SetState(true);
+    handles.PumpLaserOnLED.SetState(false);
+    handles.pumpLaserController.TurnOff();
+  end
+  
+  set(handles.PumpLaserOffText, 'Enable', antistate);
+  set(handles.PumpLaserOnText, 'Enable', state);
+end
+
+
 function handles = UpdateLaserStates(handles, laser)
-% Update the LED indicator lights and equipment
-  switch laser
-    case 'Probe'
-      handles.probeLaserPower = ~handles.probeLaserPower;
-      if handles.probeLaserPower
-        state = 'On';
-        antistate = 'Off';
-        handles.ProbeLaserOffLED.SetState(false);
-        handles.ProbeLaserOnLED.SetState(true);
-        handles.probeLaserController.TurnOn();
-      else
-        state = 'Off';
-        antistate = 'On';
-        handles.ProbeLaserOffLED.SetState(true);
-        handles.ProbeLaserOnLED.SetState(false);
-        handles.probeLaserController.TurnOff();
-      end
-      set(handles.ProbeLaserOffText, 'Enable', antistate);
-      set(handles.ProbeLaserOnText, 'Enable', state);
-      
-    case 'Pump'
-      handles.pumpLaserPower = ~handles.pumpLaserPower;
-      if handles.pumpLaserPower
-        state = 'On';
-        antistate = 'Off';
-        handles.PumpLaserOffLED.SetState(false);
-        handles.PumpLaserOnLED.SetState(true);
-        handles.pumpLaserController.SetPower(100);
-      else
-        state = 'Off';
-        antistate = 'On';
-        handles.PumpLaserOffLED.SetState(true);
-        handles.PumpLaserOnLED.SetState(true);
-        handles.pumpLaserController.SetPower(0);
-      end
-      set(handles.PumpLaserOffText, 'Enable', antistate);
-      set(handles.PumpLaserOnText, 'Enable', state);
+% Update the LED indicator lights and equipment. If 'laser' is a name then
+% change the state of the specified laser, otherwise use 'laser' as a
+% boolean value for setting the laser states.
+  if ischar(laser)
+    switch laser
+      case 'Probe'
+        handles = ToggleProbeLaser(handles);
+
+      case 'Pump'
+        handles = TogglePumpLaser(handles);
+    end
+  else
+    handles = ToggleProbeLaser(handles, laser);
+    handles = TogglePumpLaser(handles, laser);
   end
   
   UpdateRun(handles);

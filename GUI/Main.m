@@ -80,8 +80,7 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.LEDOff = ImageToggle(handles.LEDOff, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
 
   % Set initial states
-  handles.power = false;
-  handles = CascadeActionPower(handles);
+  handles = CascadeActionPower(handles, false);
   imshow(handles.settings.TCMLogo);
 
   % Update handles structure
@@ -110,11 +109,11 @@ function SystemPower_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 
   % Check the current power status and take the appropriate action
   if handles.power
-    handles.power = false;
+    powerOn = false;
   else
-    handles.power = true;
+    powerOn = true;
   end
-  handles = CascadeActionPower(handles);
+  handles = CascadeActionPower(handles, powerOn);
   
   % Update handles structure
   guidata(hObject, handles);
@@ -129,14 +128,13 @@ function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
   % Open the Controls window with the PositionSample add-on
   % Controls is modal, which means that Main will be blocked until
   % Controls closes.
-  [handles.settings, handles.preferences]...
-    = Controls('AddOn', handles.PositionSampleGUIAddOn,...
-               'Cameras', handles.cameras,...
-               'Preferences', handles.preferences,...
-               'Settings', handles.settings,...
-               'StageController', handles.stageController);
-  
-  UpdateInitializationFiles(handles);
+  handles.ControlGUI =...
+    Controls('AddOn', handles.PositionSampleGUIAddOn,...
+             'Cameras', handles.cameras,...
+             'MainWindow', handles.output,...
+             'Preferences', handles.preferences,...
+             'Settings', handles.settings,...
+             'StageController', handles.stageController);
   
   % Update handles structure
   guidata(hObject, handles);
@@ -156,16 +154,15 @@ function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to CollectData (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  [handles.settings, handles.preferences]...
-    = Controls('AddOn', handles.CollectDataGUIAddOn,...
-               'Cameras', handles.cameras,...
-               'Preferences', handles.preferences,...
-               'ProbeLaserController', handles.probeLaserController,...
-               'PumpLaserController', handles.pumpLaserController,...
-               'Settings', handles.settings,...
-               'StageController', handles.stageController);
-  
-  UpdateInitializationFiles(handles);
+  handles.ControlGUI =...
+    Controls('AddOn', handles.CollectDataGUIAddOn,...
+             'Cameras', handles.cameras,...
+             'MainWindow', handles.output,...
+             'Preferences', handles.preferences,...
+             'ProbeLaserController', handles.probeLaserController,...
+             'PumpLaserController', handles.pumpLaserController,...
+             'Settings', handles.settings,...
+             'StageController', handles.stageController);
   
   % Update handles structure
   guidata(hObject, handles);
@@ -185,101 +182,124 @@ function MainWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFN
 % hObject    handle to MainWindow (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  % Check to see if the settings have been modified
-  UpdateInitializationFiles(handles);
+  % Delete the invisible figures
+  delete(handles.PositionSampleGUIAddOn);
+  delete(handles.CollectDataGUIAddOn);
+  if isfield(handles, 'ControlGUI')
+    delete(handles.ControlGUI);
+  end
 
 % Hint: delete(hObject) closes the figure
   delete(hObject);
 end
 
-function handles = CascadeActionPower(handles)
+function handles = CascadeActionPower(handles, powerOn)
 % This function changes the states of GUI elements as needed by the current
 % power state.
   % Connect to, or disconnect, from the hardware
-  try
-    if handles.power
-      % Set up the cameras and Matrox device
-      handles.cameras.load = videoinput('matrox', handles.settings.ImageAcquisition.loadDigitizer);
-      handles.cameras.wide = videoinput('matrox', handles.settings.ImageAcquisition.wideDigitizer);
-      handles.cameras.scan = videoinput('matrox', handles.settings.ImageAcquisition.scanDigitizer);
-      handles.cameras.load.SelectedSource = handles.settings.ImageAcquisition.loadChannel;
-      handles.cameras.wide.SelectedSource = handles.settings.ImageAcquisition.wideChannel;
-      handles.cameras.scan.SelectedSource = handles.settings.ImageAcquisition.scanChannel;
-      
-      % Connect to GPIB devices
-      handles.laserScanController =...
-        ESP300_Control(handles.settings.LaserController.address,...
-                       false,...
-                       'Laser Controller');
-      handles.lockInAmpController =...
-        SR830_Control(handles.settings.LockInAmp.address,...
-                      'Lock-in Amplifier');
-      handles.probeLaserController =...
-        ProbeLaser_Control(handles.lockInAmpController,...
-                           handles.settings.LockInAmp.probePowerChannel);
-      handles.pumpLaserController =...
-        DG345_Control(handles.settings.FunctionGenerator.address,...
-                      'Function Generator');
-      handles.stageController =...
-        ESP300_Control(handles.settings.StageController.address,...
-                       true,...
-                       'Stage Controller');
-      
-      % Set the maximum travel ranges of the sample stages
-      handles.StageController.SetLimits([handles.settings.StageController.xAxisID handles.settings.SoftStageBoundaries.x],...
-                                        [handles.settings.StageController.yAxisID handles.settings.SoftStageBoundaries.y],...
-                                        [handles.settings.StageController.zAxisID handles.settings.SoftStageBoundaries.z]);
-    else
-      handles.cameras.load = '';
-      handles.cameras.wide = '';
-      handles.cameras.scan = '';
-      handles.laserScanController = '';
-      handles.lockInAmpController = '';
-      handles.probeLaserController = '';
-      handles.pumpLaserController = '';
-      handles.stageController = '';
+  if powerOn
+    try
+      handles = ConnectHardware(handles);
+    catch me
+      warning('Main:PowerOn', me.message);
+      handles = DisconnectHardware(handles);
+      return;
     end
-  catch me
-    warning('Main:PowerOn', me.message);
+  else
+    handles = DisconnectHardware(handles);
   end
 
   % Set the GUI state
-  try
-    % Get the power state
-    if handles.power
-      state = 'On';
-      antistate = 'Off';
-      handles.LEDOff.SetState(false);
-      handles.LEDOn.SetState(true);
-    else
-      state = 'Off';
-      antistate = 'On';
-      handles.LEDOff.SetState(true);
-      handles.LEDOn.SetState(false);
-    end
-  
-    % Set the states of the GUI elements
-    set(handles.TextOff, 'Enable', antistate);
-    set(handles.TextOn, 'Enable', state);
-    set(handles.ToolsAndUtilities, 'Enable', 'Off'); % Not yet implemented
-    set(handles.PositionSample, 'Enable', state);
-    set(handles.CollectData, 'Enable', state);
-    set(handles.RunAnalysis, 'Enable', 'Off'); % Not yet implemented
-  catch me
-    warning('Main:PowerOn', me.message);
+  if powerOn
+    state = 'On';
+    antistate = 'Off';
+    handles.LEDOff.SetState(false);
+    handles.LEDOn.SetState(true);
+  else
+    state = 'Off';
+    antistate = 'On';
+    handles.LEDOff.SetState(true);
+    handles.LEDOn.SetState(false);
   end
+
+  % Set the states of the GUI elements
+  set(handles.TextOff, 'Enable', antistate);
+  set(handles.TextOn, 'Enable', state);
+  set(handles.ToolsAndUtilities, 'Enable', 'Off'); % Not yet implemented
+  set(handles.PositionSample, 'Enable', state);
+  set(handles.CollectData, 'Enable', state);
+  set(handles.RunAnalysis, 'Enable', 'Off'); % Not yet implemented
+
+  % Set the global power state
+  handles.power = powerOn;
 end
 
-function UpdateInitializationFiles(handles)
+function handles = ConnectHardware(handles)
+% Connect to the hardware. Anything added here MUST have a corresponding
+% disconnect statement in DisconnectHardware()
+  % Set up the cameras and Matrox device
+  handles.cameras.load = videoinput('matrox', handles.settings.ImageAcquisition.loadDigitizer);
+  handles.cameras.wide = videoinput('matrox', handles.settings.ImageAcquisition.wideDigitizer);
+  handles.cameras.scan = videoinput('matrox', handles.settings.ImageAcquisition.scanDigitizer);
+  handles.cameras.load.SelectedSource = handles.settings.ImageAcquisition.loadChannel;
+  handles.cameras.wide.SelectedSource = handles.settings.ImageAcquisition.wideChannel;
+  handles.cameras.scan.SelectedSource = handles.settings.ImageAcquisition.scanChannel;
+
+  % Connect to GPIB devices
+  handles.laserScanController =...
+    ESP300_Control(handles.settings.LaserController.address,...
+                   false,...
+                   'Laser Controller');
+  handles.lockInAmpController =...
+    SR830_Control(handles.settings.LockInAmp.address,...
+                  'Lock-in Amplifier');
+  handles.probeLaserController =...
+    ProbeLaser_Control(handles.lockInAmpController,...
+                       handles.settings.LockInAmp.probePowerChannel);
+  handles.pumpLaserController =...
+    DG345_Control(handles.settings.FunctionGenerator.address,...
+                  'Function Generator');
+  handles.stageController =...
+    ESP300_Control(handles.settings.StageController.address,...
+                   true,...
+                   'Stage Controller');
+
+  % Set the maximum travel ranges of the sample stages
+  handles.stageController.SetLimits([handles.settings.StageController.xAxisID handles.settings.SoftStageBoundaries.x],...
+                                    [handles.settings.StageController.yAxisID handles.settings.SoftStageBoundaries.y],...
+                                    [handles.settings.StageController.zAxisID handles.settings.SoftStageBoundaries.z]);
+  % Move the Z axis to a its lowest software boundary - the Z axis needs an
+  % exception since the home seek does not move it to the middle of the
+  % travel range, but to the absolute lowest point.
+  handles.stageController.MoveAxis(handles.settings.StageController.zAxisID, 4, true);
+end
+
+function handles = DisconnectHardware(handles)
+% Disconnect the hardware by setting the handles to empty. The individual
+% classes will automtically disconnect the hardware when deleted.
+  handles.cameras.load = '';
+  handles.cameras.wide = '';
+  handles.cameras.scan = '';
+  handles.laserScanController = '';
+  handles.lockInAmpController = '';
+  handles.probeLaserController = '';
+  handles.pumpLaserController = '';
+  handles.stageController = '';
+end
+
+function UpdateIniFiles(hObject, settings, preferences) %#ok<DEFNU>
+% Update the settings and preferences as needed
+  handles = guidata(hObject);
+  
   % Check to see if the settings have been modified
-  if ~isequal(handles.settings, handles.old.Settings);
-    struct2ini(handles.settingsFile, handles.settings);
+  if ~isequal(settings, handles.old.Settings);
+    struct2ini(handles.settingsFile, settings);
     fprintf('Modified settings detected. Changes have been saved to ''%s''\n', handles.settingsFile);
   end
   
   % Check to see if the preferences have been modified
-  if ~isequal(handles.preferences, handles.old.Preferences);
-    struct2ini(handles.preferencesFile, handles.preferences);
+  if ~isequal(preferences, handles.old.Preferences);
+    struct2ini(handles.preferencesFile, preferences);
     fprintf('Modified preferences detected. Changes have been saved to ''%s''\n', handles.preferencesFile);
   end
 end

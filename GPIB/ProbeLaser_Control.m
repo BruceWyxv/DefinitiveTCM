@@ -18,11 +18,11 @@ classdef ProbeLaser_Control
       myself.probeControlOutputIndex = probeControlOutputIndex;
     end
     
-    function TurnOff()
+    function TurnOff(myself)
       myself.lockInAmpControl.SetAuxOutputVoltage(myself.probeControlOutputIndex, 0);
     end
     
-    function TurnOn()
+    function TurnOn(myself)
       myself.lockInAmpControl.SetAuxOutputVoltage(myself.probeControlOutputIndex, 10);
     end
   end

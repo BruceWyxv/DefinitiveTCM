@@ -26,18 +26,17 @@ classdef DG345_Control < GPIB_Interface
       myself@GPIB_Interface(address, name);
       
       % Use a SINE function
-      GPIB_Interface.Communicate(myself, 'FUNC 0');
+      myself.SendCommand('FUNC 0');
       % Ensure signal inversion is off
-      GPIB_Interface.Communicate(myself, 'INVT 0');
+      myself.SendCommand('INVT 0');
       
-      % Set the intial conditions
-      myself.SetFrequency(1e3);
-      myself.SetPower(0);
+      % Initialize the power to off
+      myself.TurnOff();
     end
     
     function SetFrequency(myself, frequency)
     % Sets the frequency of the output
-      GPIB_Interface.Communicate(myself, sprintf('FREQ %i', frequency));
+      myself.SendCommand(sprintf('FREQ %i', frequency));
       myself.frequency = frequency;
     end
     
@@ -53,21 +52,39 @@ classdef DG345_Control < GPIB_Interface
       myself.SetVoltage(voltagePP);
       myself.power = power;
     end
+    
+    function TurnOff(myself)
+    % Turns the power off
+      myself.SetPower(0);
+      myself.SetFrequency(100);
+    end
+    
+    function TurnOn(myself)
+    % Turns the power on and sets the laser to a minimal output level
+      myself.SetPower(100);
+      myself.SetFrequency(1e3);
+    end
   end
   
   methods (Access = protected)
+    function SendCommand(myself, command)
+    % Sends a command, using the required line feed at the end although
+    % tesing indicates that it is not actually needed.)
+      GPIB_Interface.Communicate(myself, sprintf('%s\n', command));
+    end
+    
     function SetVoltage(myself, voltage)
     % Sets the maximum voltage of the output
       if voltage > myself.maxVoltage
         warning('DG345_Control:MaxVoltageExceeded', 'Setting voltage to maximum allowable voltage of %f V', myself.maxVoltage);
         voltage = myself.maxVoltage;
-      elseif voltage < myself.minVoltage
-        if voltage ~= 0
-          % Only issue a warning for non-zero values. We use '0' to 'turn
+      elseif voltage < myself.minVoltage * 2
+        if voltage < 0
+          % Only issue a warning for negative values. We use '0' to 'turn
           % off' the laser
-          warning('DG345_Control:MinVoltageExceeded', 'Setting voltage to minimum allowable voltage of %f V', myself.minVoltage);
+          warning('DG345_Control:MinVoltageExceeded', 'Setting voltage to minimal allowable voltage');
         end
-        voltage = myself.minVoltage;
+        voltage = myself.minVoltage + .01;
       end
       
       % Calculate some values
@@ -78,9 +95,9 @@ classdef DG345_Control < GPIB_Interface
       % DC amplitude to the offset, then finally add in the AC component.
       %
       % This process ensures that the laser never sees a negative signal
-      GPIB_Interface.Communicate(myself, 'AMPL 0.0VP');
-      GPIB_Interface.Communicate(myself, sprintf('OFFS %f', dcOffset));
-      GPIB_Interface.Communicate(myself, sprintf('AMPL %fVP', peak2Peak))
+      myself.SendCommand('AMPL 0.0VP');
+      myself.SendCommand(sprintf('OFFS %f', dcOffset));
+      myself.SendCommand(sprintf('AMPL %fVP', peak2Peak));
       
       myself.offset = dcOffset;
       myself.voltage = voltage;
@@ -90,7 +107,7 @@ classdef DG345_Control < GPIB_Interface
   methods (Access = private)
     function delete(myself)
     % Turns off the laser
-      myself.SetPower(0);
+      myself.TurnOff();
     end
   end
 end

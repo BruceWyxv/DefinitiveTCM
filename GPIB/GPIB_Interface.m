@@ -84,14 +84,15 @@ classdef GPIB_Interface < handle
         % Send the command and record the response
         if myself.good
           fprintf(myself.deviceHandle, command);
+          
+          % Wait just briefly to allow the device to process the previous
+          % command. It was discovered through long testing that 0.01 is
+          % too short, but 0.02 gives the device long enough to sort out
+          % the barrage of electrical impulses it is receiving via GPIB.
+          pause(0.02);
+          
           % Get a reply value if one was requested
           if nargout == 1
-            % Wait just briefly to allow the device to process the previous
-            % command and reply. It was discovered through long testing
-            % that 0.01 is too short, but 0.02 gives the device long enough
-            % to sort out the barrage of electrical impulses it is
-            % receiving via GPIB.
-            pause(0.02);
             reply = fscanf(myself.deviceHandle);
           else
             reply = '';

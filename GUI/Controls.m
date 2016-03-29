@@ -61,8 +61,10 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   % Check the input arguments
   if ~isempty(varargin)
     parser = inputParser;
-    parser.addParameter('addOn', open('Controls_AddOnTemplate.fig'), @ishandle);
+    %parser.addParameter('addOn', open('Controls_AddOnTemplate.fig'), @ishandle);
+    parser.addParameter('addOn', '', @ishandle);
     parser.addParameter('cameras', '', @isstruct);
+    parser.addParameter('mainWindow', '', @ishandle);
     parser.addParameter('preferences', '', @isstruct);
     parser.addParameter('settings', '', @isstruct);
     parser.addParameter('stageController', '', @(x) isa(x, 'ESP300_Control'));
@@ -78,6 +80,7 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     % Assigned values
     handles.addOn = parser.Results.addOn;
     handles.cameras = parser.Results.cameras;
+    handles.mainWindow = parser.Results.mainWindow;
     handles.preferences = parser.Results.preferences;
     handles.probeLaserController = parser.Results.probeLaserController;
     handles.pumpLaserController = parser.Results.pumpLaserController;
@@ -144,14 +147,11 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
                            0.02, 0.1;...
                            0.04, 0.2];
   set(handles.ComputerControl, 'Value', 1);
-  handles.ComputerControl = true;
   UpdateControlSystem(handles);
   handles = UpdateStepSizeGroup(handles);
 
   % Update handles structure
   guidata(hObject, handles);
-  
-  uiwait(hObject);
 end
 
 
@@ -159,16 +159,14 @@ function ControlsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,
 % hObject    handle to ControlsWindow (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-
-  if isequal(get(hObject, 'waitstatus'), 'waiting')
-    % Allow the add-on modules to clean up as needed
-    addOnHandle = str2func(handles.addOn.Tag);
-    addOnHandle('CleanUpForClose', handles);
+  % Update any settings or preferences
+  Main('UpdateIniFiles', handles.mainWindow, handles.settings, handles.preferences);
   
-    uiresume(hObject);
-  else
-    delete(hObject);
-  end
+  % Allow the add-on window to close its elements properly
+  addOnHandle = str2func(handles.addOn.Tag);
+  addOnHandle('CleanUpForClose', handles);
+  
+  delete(hObject);
 end
 
 
@@ -178,13 +176,7 @@ function varargout = Controls_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
 % hObject    handle to figure
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-
-  % Get default command line output from handles structure
-  varargout{1} = handles.settings;
-  varargout{2} = handles.preferences;
-  
-  % Finally delete the dialog
-  delete(hObject);
+  varargout{1} = handles.output;
 end
 
 
@@ -198,40 +190,19 @@ function CameraViewContextMenu_Callback(hObject, eventdata, handles) %#ok<INUSD,
 end
 
 
-function ComputerControl_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to ComputerControl (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of ComputerControl
-  handles.ComputerControl = true;
-  UpdateControlSystem(handles);
-end
-
-
-function ControlSystem_SelectionChangedFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+function ControlSystem_SelectionChangedFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to the selected object in ControlSystem 
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  UpdateControlSystem(handles);
 end
 
 
-function Done_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+function Done_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to Done (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  close(handles.ControlsWindow);
-end
-
-
-function JoystickControl_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to JoystickControl (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of JoystickControl
-  handles.ComputerControl = false;
-  UpdateControlSystem(handles);
+  close(hObject.Parent);
 end
 
 
@@ -743,10 +714,14 @@ function [value, clean] = SanitizeEdit(edit, stageRange)
     warning('GUI:InvalidEntry', '''%s'' does not contain a valid number. Setting to ''0''', value);
     value = 0;
   elseif value < 0
-    warning('GUI:InvalidEntry', '''%g'' is below the accepted stage range. Setting to ''0''', value);
+    if ~isFloatEqual(value, 0, 1e-3)
+      warning('GUI:InvalidEntry', '''%g'' is below the accepted stage range. Setting to ''0''', value);
+    end
     value = 0;
   elseif value > stageRange
-    warning('GUI:InvalidEntry', '''%g'' is above the accepted stage range. Setting to ''%g''', value, stageRange);
+    if ~isFloatEqual(value, stageRange, 1e-3)
+      warning('GUI:InvalidEntry', '''%g'' is above the accepted stage range. Setting to ''%g''', value, stageRange);
+    end
     value = stageRange;
   end
   clean = sprintf('%g', value);
@@ -828,7 +803,7 @@ end
 
 function UpdateControlSystem(handles)
 % Updates the control system to what the user selected
-  if handles.ComputerControl
+  if get(handles.ComputerControl, 'Value') == 1
     state = 'on';
   else
     state = 'off';
