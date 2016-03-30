@@ -110,8 +110,17 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
   CenterLasers(handles);
   
   try
-    % Collect and save the data
-    data = CollectData(handles); %#ok<NASGU>
+    % Set up the system
+    run = Run('LaserScanController', handles.laserScanController,...
+              'LockInAmpController', handles.lockInAmpController,...
+              'PumpLaserController', handles.pumpLaserController,...
+              'Settings', handles.settings,...
+              'StageController', handles.stageController);
+    Run('Focus', run, guidata(hObject));
+    Run('Center', run, guidata(hObject));
+    
+    % Record and save the data
+    data = Run('Data', run, guidata(hObject)); %#ok<NASGU>
     save(savePath, '-struct', 'data');
 
     % Update the preferences

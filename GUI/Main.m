@@ -45,7 +45,6 @@ function varargout = Main(varargin)
 end
 
 
-% --- Executes just before Main is made visible.
 function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 % This function has no output args, see OutputFcn.
 % hObject    handle to figure
@@ -89,7 +88,6 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 end
 
 
-% --- Outputs from this function are returned to the command line.
 function varargout = Main_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
 % varargout  cell array for returning output args (see VARARGOUT);
 % hObject    handle to figure
@@ -101,7 +99,25 @@ function varargout = Main_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
 end
 
 
-% --- Executes on button press in SystemPower.
+function MainWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to MainWindow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  % Delete the invisible figures
+  delete(handles.PositionSampleGUIAddOn);
+  delete(handles.CollectDataGUIAddOn);
+  if isfield(handles, 'ControlGUI')
+    delete(handles.ControlGUI);
+  end
+
+% Hint: delete(hObject) closes the figure
+  delete(hObject);
+end
+
+
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
 function SystemPower_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 % hObject    handle to SystemPower (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -120,7 +136,6 @@ function SystemPower_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 end
 
 
-% --- Executes on button press in PositionSample.
 function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 % hObject    handle to PositionSample (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -141,7 +156,6 @@ function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 end
 
 
-% --- Executes on button press in ToolsAndUtilities.
 function ToolsAndUtilities_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
 % hObject    handle to ToolsAndUtilities (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -149,7 +163,6 @@ function ToolsAndUtilities_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUS
 end
 
 
-% --- Executes on button press in CollectData.
 function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to CollectData (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -157,6 +170,8 @@ function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
   handles.ControlGUI =...
     Controls('AddOn', handles.CollectDataGUIAddOn,...
              'Cameras', handles.cameras,...
+             'LaserScanController', handles.laserScanController,...
+             'LockInAmpController', handles.lockInAmpController,...
              'MainWindow', handles.output,...
              'Preferences', handles.preferences,...
              'ProbeLaserController', handles.probeLaserController,...
@@ -169,7 +184,6 @@ function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-% --- Executes on button press in RunAnalysis.
 function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
 % hObject    handle to RunAnalysis (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -177,22 +191,9 @@ function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
 end
 
 
-% --- Executes when user attempts to close MainWindow.
-function MainWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to MainWindow (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  % Delete the invisible figures
-  delete(handles.PositionSampleGUIAddOn);
-  delete(handles.CollectDataGUIAddOn);
-  if isfield(handles, 'ControlGUI')
-    delete(handles.ControlGUI);
-  end
-
-% Hint: delete(hObject) closes the figure
-  delete(hObject);
-end
-
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
 function handles = CascadeActionPower(handles, powerOn)
 % This function changes the states of GUI elements as needed by the current
 % power state.
@@ -257,7 +258,7 @@ function handles = ConnectHardware(handles)
     ProbeLaser_Control(handles.lockInAmpController,...
                        handles.settings.LockInAmp.probePowerChannel);
   handles.pumpLaserController =...
-    DG345_Control(handles.settings.FunctionGenerator.address,...
+    DS345_Control(handles.settings.FunctionGenerator.address,...
                   'Function Generator');
   handles.stageController =...
     ESP300_Control(handles.settings.StageController.address,...

@@ -1,11 +1,11 @@
-classdef DG345_Control < GPIB_Interface
-% Provides commands for interfacing with the SRS DG345 function generator
+classdef DS345_Control < GPIB_Interface
+% Provides commands for interfacing with the SRS DS345 function generator
 %
-%   Control of the SRS DG345 is provided via implementation of the required
+%   Control of the SRS DS345 is provided via implementation of the required
 %   commands as class member functions.
   
   properties (Constant = true, GetAccess = public)
-    maxVoltage = 5.0; % Maximum output voltage of the DG345
+    maxVoltage = 5.0; % Maximum output voltage of the DS345
     minVoltage = 0.05; % The attached pump laser will go bad if a negative volage is ever applied
   end
   
@@ -17,7 +17,7 @@ classdef DG345_Control < GPIB_Interface
   end
   
   methods
-    function myself = DG345_Control(address, name)
+    function myself = DS345_Control(address, name)
     % Construct this class and call the superclass constructor to intialize
     % the interface to the device
       if nargin == 1

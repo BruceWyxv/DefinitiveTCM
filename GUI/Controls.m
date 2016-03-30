@@ -61,13 +61,14 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   % Check the input arguments
   if ~isempty(varargin)
     parser = inputParser;
-    %parser.addParameter('addOn', open('Controls_AddOnTemplate.fig'), @ishandle);
     parser.addParameter('addOn', '', @ishandle);
     parser.addParameter('cameras', '', @isstruct);
     parser.addParameter('mainWindow', '', @ishandle);
     parser.addParameter('preferences', '', @isstruct);
     parser.addParameter('settings', '', @isstruct);
     parser.addParameter('stageController', '', @(x) isa(x, 'ESP300_Control'));
+    parser.addOptional('laserScanController', '');
+    parser.addOptional('lockInAmpController', '');
     parser.addOptional('probeLaserController', '');
     parser.addOptional('pumpLaserController', '');
     % Parse the input arguments
@@ -80,6 +81,8 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     % Assigned values
     handles.addOn = parser.Results.addOn;
     handles.cameras = parser.Results.cameras;
+    handles.laserScanController = parser.Results.laserScanController;
+    handles.lockInAmpController = parser.Results.lockInAmpController;
     handles.mainWindow = parser.Results.mainWindow;
     handles.preferences = parser.Results.preferences;
     handles.probeLaserController = parser.Results.probeLaserController;
@@ -183,13 +186,6 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
-function CameraViewContextMenu_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to CameraViewContextMenu (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-end
-
-
 function ControlSystem_SelectionChangedFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to the selected object in ControlSystem 
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -458,7 +454,9 @@ end
 function [stagePosition, x, y, z] = DetermineStagePosition(handles)
 % Attempts to determine the current stage position from the absolute
 % coordinates of the stages
-  coordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.StageController.xAxisID, handles.settings.StageController.yAxisID, handles.settings.StageController.zAxisID]);
+  coordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.StageController.xAxisID,...
+                                                                handles.settings.StageController.yAxisID,...
+                                                                handles.settings.StageController.zAxisID]);
   locations = handles.settings.PositionLocations;
   boundaries = handles.settings.SampleBoundaries;
   fields = fieldnames(locations);

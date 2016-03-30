@@ -91,6 +91,9 @@ classdef ESP300_Control < GPIB_Interface
     % progress bar if requested.
       if isnumeric(axis) && isnumeric(position)
         myself.Command(axis, 'PA', position);
+      else
+        warning('ESP300_Control:BadArgument', 'Both ''axis'' and ''position'' must be numeric.');
+        return;
       end
       
       if nargin == 4 && progressBar
