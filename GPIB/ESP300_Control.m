@@ -86,6 +86,19 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
+    function MinimizeHysteresis(myself, axis, firstTwoPositions)
+    % Minimize stage hysteresis by approaching the initial position from
+    % the opposite direction
+      if ~isnumeric(firstTwoPositions) || length(firstTwoPositions) < 1
+        warning('ESP300_Control:InsufficientInformation', 'Must provide the first two positions in order to provide directionality for hysteresis minimization.');
+        return;
+      end
+      
+      hysteresisPosition = firstTwoPositions(1) + 4 * (firstTwoPositions(1) - firstTwoPositions(2));
+      myself.MoveAxis(axis, 'PA', hysteresisPosition);
+      myself.WaitForAction(axis);
+    end
+    
     function MoveAxis(myself, axis, position, progressBar)
     % Move the specified axis to the desired position. Optionally display a
     % progress bar if requested.

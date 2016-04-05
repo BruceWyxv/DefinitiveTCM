@@ -20,6 +20,10 @@ classdef SR830_Control < GPIB_Interface
     valueOfTimeConstantIndex; % Handle to the database time constant function, used to get a time constant value from an index
   end
   
+  properties (SetAccess = private, GetAccess = public)
+    chillTime; % The amount of time required to stabilize a reading, equal in duration to 6 time constants
+  end
+  
   methods
     function myself = SR830_Control(address, name)
     % Construct this class and call the superclass constructor to intialize
@@ -38,6 +42,11 @@ classdef SR830_Control < GPIB_Interface
       myself.valueOfTimeConstantIndex = @database.GetLockInAmpTimeConstant;
     end
     
+    function Chill(myself)
+    % Wait 6 time constants so that the readings stabilize
+     pause(myself.chillTime);
+    end
+    
     function amplitude = GetAmplitude(myself)
     % Get the amplitude of the matching signal
       amplitude = str2double(myself.GetSignalValue(myself.amplitudeOutputIndex));
@@ -46,6 +55,12 @@ classdef SR830_Control < GPIB_Interface
     function value = GetAuxInputValue(myself, index)
     % Gets the current reading on the selected auxillary input
       value = str2double(GPIB_Interface.Communicate(myself, sprintf('OAUX?%i', index)));
+      
+      % Check for a NaN, recursively call if a NaN is returned
+      % NaNs are returned only when a communication timeout occurs
+      if isnan(value)
+        value = myself.GetAuxInputValue(index);
+      end
     end
     
     function phase = GetPhase(myself)
@@ -72,6 +87,12 @@ classdef SR830_Control < GPIB_Interface
     function value = GetSignalValue(myself, index)
     % Get the output component of the signal
       value = str2double(GPIB_Interface.Communicate(myself, sprintf('OUTP?%i', index)));
+      
+      % Check for a NaN, recursively call if a NaN is returned
+      % NaNs are returned only when a communication timeout occurs
+      if isnan(value)
+        value = myself.GetSignalValue(index);
+      end
     end
     
     function index = GetTimeConstantIndex(myself)
@@ -125,8 +146,9 @@ classdef SR830_Control < GPIB_Interface
     function SetTimeConstantIndex(myself, index)
     % Set the time constant using the index value
       try
-        myself.valueOfTimeConstantIndex(index);
+        value = myself.valueOfTimeConstantIndex(index);
         GPIB_Interface.Communicate(myself, sprintf('OFLT %i', index));
+        myself.chillTime = value * 6;
       catch
         warning('SR830_Control:BadTimeConstantIndex', 'Ignoring value');
       end

@@ -113,20 +113,34 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
     % Set up the system
     run = Run('LaserScanController', handles.laserScanController,...
               'LockInAmpController', handles.lockInAmpController,...
+              'Preferences', handles.preferences,...
               'PumpLaserController', handles.pumpLaserController,...
               'Settings', handles.settings,...
               'StageController', handles.stageController);
-    Run('Focus', run, guidata(hObject));
-    Run('Center', run, guidata(hObject));
+    centered = false;
+    while ~centered
+      Run('Center', run, guidata(run));
+    end
+    focused = false;
+    while ~focused
+      focused = Run('Focus', run, guidata(run));
+    end
     
     % Record and save the data
-    data = Run('Data', run, guidata(hObject)); %#ok<NASGU>
-    save(savePath, '-struct', 'data');
+    [data, success] = Run('Data', run, guidata(run));
+    
+    if success
+      % Save the data
+      data.sampleInfo = sampleInfo;
+      data.sampleName = handles.sampleName;
+      data.savepath = savepath;
+      save(savePath, '-struct', 'data');
 
-    % Update the preferences
-    handles.preferences.CollectData.savePath = savePath;
-    handles.preferences.CollectData.sampleInfo = sampleInfo;
-    guidata(hObject,handles);
+      % Update the preferences
+      handles.preferences.CollectData.savePath = savePath;
+      handles.preferences.CollectData.sampleInfo = sampleInfo;
+      guidata(hObject,handles);
+    end
   catch
     % Nothing here yet
   end
