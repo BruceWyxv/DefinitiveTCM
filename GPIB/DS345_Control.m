@@ -10,10 +10,11 @@ classdef DS345_Control < GPIB_Interface
   end
   
   properties (SetAccess = private, GetAccess = public)
-    frequency;
-    offset;
-    power;
-    voltage;
+    frequency; % The pulse frequency
+    isOn; % Boolean state for if the laser is on
+    offset; % Signal offset
+    powerLevel; % Relative power level on a scale of 0 to 100
+    voltage; % Signal amplitude
   end
   
   methods
@@ -40,29 +41,32 @@ classdef DS345_Control < GPIB_Interface
       myself.frequency = frequency;
     end
     
-    function SetPower(myself, power)
+    function SetPower(myself, powerLevel)
     % Sets the laser power, on a scale from 0 to 100
-      if power < 0
-        power = 0;
-      elseif power > 100
-        power = 100;
+      if powerLevel <= 0
+        powerLevel = 0;
+        myself.isOn = false;
+      elseif powerLevel > 100
+        powerLevel = 100;
       end
       
-      voltagePP = (myself.maxVoltage - myself.minVoltage) * (power / 100) + myself.minVoltage;
+      voltagePP = (myself.maxVoltage - myself.minVoltage) * (powerLevel / 100) + myself.minVoltage;
       myself.SetVoltage(voltagePP);
-      myself.power = power;
+      myself.powerLevel = powerLevel;
     end
     
     function TurnOff(myself)
     % Turns the power off
       myself.SetPower(0);
       myself.SetFrequency(100);
+      myself.isOn = false;
     end
     
     function TurnOn(myself)
     % Turns the power on and sets the laser to a minimal output level
       myself.SetPower(100);
       myself.SetFrequency(1e3);
+      myself.isOn = true;
     end
   end
   
@@ -76,13 +80,13 @@ classdef DS345_Control < GPIB_Interface
     function SetVoltage(myself, voltage)
     % Sets the maximum voltage of the output
       if voltage > myself.maxVoltage
-        warning('DG345_Control:MaxVoltageExceeded', 'Setting voltage to maximum allowable voltage of %f V', myself.maxVoltage);
+        warning('DS345_Control:MaxVoltageExceeded', 'Setting voltage to maximum allowable voltage of %f V', myself.maxVoltage);
         voltage = myself.maxVoltage;
       elseif voltage < myself.minVoltage * 2
         if voltage < 0
           % Only issue a warning for negative values. We use '0' to 'turn
           % off' the laser
-          warning('DG345_Control:MinVoltageExceeded', 'Setting voltage to minimal allowable voltage');
+          warning('DS345_Control:MinVoltageExceeded', 'Setting voltage to minimal allowable voltage');
         end
         voltage = myself.minVoltage + .01;
       end

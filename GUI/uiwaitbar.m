@@ -10,27 +10,39 @@ function h = uiwaitbar(varargin)
 % written by Doug Schwarz, 11 December 2008
 % modified by Brycen Wendt
  
-  if ishandle(varargin{1})
-      ax = varargin{1};
-      value = varargin{2};
-      p = get(ax,'Child');
-      x = get(p,'XData');
-      x(3:4) = value;
-      set(p,'XData',x)
-      return
+  if ischar(varargin{1})
+    command = lower(varargin{1});
+    switch command
+      case 'create'
+        h = Create(varargin{2}, varargin{3});
+        
+      case 'update'
+        Update(varargin{2}, varargin{3});
+    end
+  else
+    Update(varargin{1}, varargin{2});
   end
+end
 
-  pos = varargin{1};
-  bg_color = 'w';
-  fg_color = 'g';
-  h = axes('Units','pixels',...
-      'Position',pos,...
-      'XLim',[0 1],'YLim',[0 1],...
-      'XTick',[],'YTick',[],...
-      'Color',bg_color,...
-      'XColor',bg_color,'YColor',bg_color);
-  patch([0 0 0 0],[0 1 1 0],fg_color,...
-      'Parent',h,...
-      'EdgeColor','none',...
-      'EraseMode','none');
+function waitbar = Create(parent, position)
+  backgroundColor = 'w';
+  foregroundColor = 'g';
+  waitbar = axes('Parent', parent,...
+                 'Units', 'pixels',...
+                 'Position', position,...
+                 'XLim', [0 1], 'YLim', [0 1],...
+                 'XTick', [], 'YTick', [],...
+                 'Color', backgroundColor,...
+                 'XColor', backgroundColor, 'YColor', backgroundColor);
+  patch([0 0 0 0], [0 1 1 0], foregroundColor,...
+        'Parent', waitbar,...
+        'EdgeColor', 'none');
+end
+
+function Update(waitbar, value)
+  bar = get(waitbar, 'Child');
+  data = get(bar, 'XData');
+  data(3:4) = value;
+  set(bar, 'XData', data)
+  return
 end

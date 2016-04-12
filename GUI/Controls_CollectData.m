@@ -82,7 +82,7 @@ function ProbeLaserButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU
 % hObject    handle to ProbeLaserButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  handles = UpdateLaserStates(handles, 'Probe');
+  handles = ToggleProbeLaser(handles);
   guidata(hObject, handles);
 end
 
@@ -92,7 +92,7 @@ function PumpLaserButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to PumpLaserButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  handles = UpdateLaserStates(handles, 'Pump');
+  handles = TogglePumpLaser(handles);
   guidata(hObject, handles);
 end
 
@@ -101,49 +101,67 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to RunScanButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  % Disable all the controls
+  Controls('SetControlState', handles, 'off');
+  
   % Get the information for the data collection
   savePath = CheckPath(handles);
   sampleInfo = SampleInfoArray2Linear(handles.sampleInfo);
   
-  % Initialize the laser system
-  FocusSample(handles);
-  CenterLasers(handles);
-  
   try
-    % Set up the system
+    % Create the run window
     run = Run('LaserScanController', handles.laserScanController,...
               'LockInAmpController', handles.lockInAmpController,...
+              'MainWindow', handles.mainWindow,...
               'Preferences', handles.preferences,...
               'PumpLaserController', handles.pumpLaserController,...
               'Settings', handles.settings,...
               'StageController', handles.stageController);
-    centered = false;
-    while ~centered
-      Run('Center', run, guidata(run));
-    end
-    focused = false;
-    while ~focused
-      focused = Run('Focus', run, guidata(run));
-    end
-    
-    % Record and save the data
-    [data, success] = Run('Data', run, guidata(run));
-    
-    if success
-      % Save the data
-      data.sampleInfo = sampleInfo;
-      data.sampleName = handles.sampleName;
-      data.savepath = savepath;
-      save(savePath, '-struct', 'data');
 
-      % Update the preferences
-      handles.preferences.CollectData.savePath = savePath;
-      handles.preferences.CollectData.sampleInfo = sampleInfo;
-      guidata(hObject,handles);
+    try
+      % Set up the system
+      centered = false;
+      goodToGo = true;
+      while ~centered && goodToGo
+        [centered, goodToGo] = Run('Center', guidata(run));
+      end
+      focused = false;
+      while ~focused && goodToGo
+        [focused, goodToGo, relativeFocusPosition] = Run('Focus', guidata(run));
+      end
+      if focused && goodToGo
+        Controls('UpdateFocusPosition', handles, relativeFocusPosition);
+      end
+
+      % Record and save the data
+      if centered && focused && goodToGo
+        [data, success] = Run('Data', guidata(run));
+
+        if success
+          % Save the data
+          data.sampleInfo = sampleInfo;
+          data.sampleName = handles.sampleName;
+          data.savepath = savePath;
+          save(savePath, '-struct', 'data');
+
+          % Update the preferences
+          handles.preferences.CollectData.savePath = savePath;
+          handles.preferences.CollectData.sampleInfo = sampleInfo;
+          guidata(hObject,handles);
+        end
+      end
+    catch myError
+      disp(getReport(myError));
     end
-  catch
-    % Nothing here yet
+
+    close(run);
+    delete(run);
+  catch myError
+    disp(getReport(myError));
   end
+  
+  % Enable all the controls
+  Controls('SetControlState', handles, 'on');
 end
 
 
@@ -234,7 +252,7 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
-function fullPath = CheckPath(handles)
+function [fullPath, folderExists, fileExists] = CheckPath(handles)
 % Checks the current path of the save file. If there is an error then the
 % appropriate edit box is given a light red background. Otherwise the edit
 % boxes are set to a white background.
@@ -246,37 +264,51 @@ function fullPath = CheckPath(handles)
   
   fullPath = fileUtilities.GetFileName(handles.saveFolder, handles.sampleName);
   
+  folderExists = false;
+  fileExists = false;
   if exist(handles.saveFolder, 'dir') ~= 7
     % The folder does not exist, change the background color of the
     % SaveFolder edit box to indicate an error
     set(handles.SaveFolderEdit, 'BackgroundColor', [1, 0.4, 0.4]);
+    set(handles.SampleNameEdit, 'BackgroundColor', [0.7, 0.7, 0.7]);
+    set(handles.SaveFolderEdit, 'TooltipString', 'Save folder does not exist!');
+    set(handles.SampleNameEdit, 'TooltipString', 'Save folder does not exist!');
   else
     % All clear
     set(handles.SaveFolderEdit, 'BackgroundColor', 'white');
+    set(handles.SaveFolderEdit, 'TooltipString', handles.tooltips.saveFolderEdit);
+    set(handles.SampleNameEdit, 'TooltipString', handles.tooltips.sampleNameEdit);
+    folderExists = true;
     
     if exist(fullPath, 'file')
       % The file already exists, change the background color of the
-      % SampleName edit box to indicate an error
-      set(handles.SampleNameEdit, 'BackgroundColor', [1, 0.4, 0.4]);
+      % SampleName edit box to indicate a warning
+      set(handles.SampleNameEdit, 'BackgroundColor', [1, 1, 0.1]);
+      set(handles.SampleNameEdit, 'TooltipString', 'The file already exists! The data will be overwritten unless you change the save folder or save name.');
     else
       % All clear
       set(handles.SampleNameEdit, 'BackgroundColor', 'white');
+      set(handles.SampleNameEdit, 'TooltipString', handles.tooltips.sampleNameEdit);
+      fileExists = true;
     end
   end
 end
 
 
-function CleanUpForClose(handles) %#ok<DEFNU>
-% Turn off all the lasers
-  handles.probeLaserController.TurnOff();
-  handles.pumpLaserController.TurnOff();
-  UpdateLaserStates(handles, false);
+function CleanUpForClose(handles) %#ok<INUSD,DEFNU>
+% Do not turn off lasers automatically - we want them to be warm, even if
+% the user exits the CollectData dialog
 end
 
 
 function handles = InitializeChildren(handles) %#ok<DEFNU>
 % Initializes the states of any child controls, called by the main
 % ControlsGUI
+  % Record the default tooltips for any windows that may have dynamic
+  % tooltips
+  handles.tooltips.saveFolderEdit = get(handles.SaveFolderEdit, 'TooltipString');
+  handles.tooltips.sampleNameEdit = get(handles.SampleNameEdit, 'TooltipString');
+  
   % Sets the values of the save path and sample name
   if ~isempty(handles.preferences.CollectData.savePath)
     [handles.saveFolder, handles.sampleName, ~] = fileparts(handles.preferences.CollectData.savePath);
@@ -293,23 +325,23 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
     handles.sampleInfo = SampleInfoLinear2Array(handles.preferences.CollectData.sampleInfo);
   end
   
-  % Set the laser states
+  % Get the laser states
   if ~isa(handles.probeLaserController, 'ProbeLaser_Control')
     error('Invalid handle for probe laser controller!');
   end
-  if ~isa(handles.pumpLaserController, 'DG345_Control')
+  if ~isa(handles.pumpLaserController, 'DS345_Control')
     error('Invalid handle for pump laser controller!');
   end
-  handles.probeLaserPower = false;
-  handles.pumpLaserPower = false;
-  UpdateRun(handles);
+  handles.probeLaserPower = handles.probeLaserController.isOn;
+  handles.pumpLaserPower = handles.pumpLaserController.isOn;
   
   % Create the LED controls
   handles.ProbeLaserOffLED = ImageToggle(handles.ProbeLaserOffLED, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
   handles.ProbeLaserOnLED = ImageToggle(handles.ProbeLaserOnLED, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
   handles.PumpLaserOffLED = ImageToggle(handles.PumpLaserOffLED, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
   handles.PumpLaserOnLED = ImageToggle(handles.PumpLaserOnLED, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
-  handles = UpdateLaserStates(handles, false);
+  ToggleProbeLaser(handles, handles.probeLaserPower);
+  TogglePumpLaser(handles, handles.pumpLaserPower);
   
   % Move the stage and camera to the scanning position; this is performed
   % last since it takes the longest and we want the GUI window to show the
@@ -340,6 +372,19 @@ function array = SampleInfoLinear2Array(linear)
 end
 
 
+function SetControlState(handles, state) %#ok<DEFNU>
+% Disables all controls on this window
+  allControls = [handles.SaveFolderEdit,...
+                 handles.SampleNameEdit,...
+                 handles.SaveFolderBrowseButton,...
+                 handles.SampleInfoButton,...
+                 handles.PumpLaserButton,...
+                 handles.ProbeLaserButton,...
+                 handles.RunScanButton];
+  set(findall(allControls, '-property', 'Enable'), 'Enable', state);
+end
+
+
 function handles = ToggleProbeLaser(handles, setPowerState)
 % Change the power state of the probe laser
   if nargin == 2
@@ -364,6 +409,8 @@ function handles = ToggleProbeLaser(handles, setPowerState)
   
   set(handles.ProbeLaserOffText, 'Enable', antistate);
   set(handles.ProbeLaserOnText, 'Enable', state);
+  
+  UpdateRun(handles);
 end
 
 
@@ -391,25 +438,6 @@ function handles = TogglePumpLaser(handles, setPowerState)
   
   set(handles.PumpLaserOffText, 'Enable', antistate);
   set(handles.PumpLaserOnText, 'Enable', state);
-end
-
-
-function handles = UpdateLaserStates(handles, laser)
-% Update the LED indicator lights and equipment. If 'laser' is a name then
-% change the state of the specified laser, otherwise use 'laser' as a
-% boolean value for setting the laser states.
-  if ischar(laser)
-    switch laser
-      case 'Probe'
-        handles = ToggleProbeLaser(handles);
-
-      case 'Pump'
-        handles = TogglePumpLaser(handles);
-    end
-  else
-    handles = ToggleProbeLaser(handles, laser);
-    handles = TogglePumpLaser(handles, laser);
-  end
   
   UpdateRun(handles);
 end

@@ -22,7 +22,7 @@ function varargout = Run(varargin)
 
 % Edit the above text to modify the response to help Run
 
-% Last Modified by GUIDE v2.5 29-Mar-2016 17:10:05
+% Last Modified by GUIDE v2.5 12-Apr-2016 11:50:34
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -59,6 +59,7 @@ function Run_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   parser = inputParser;
   parser.addParameter('laserScanController', '', @(x) isa(x, 'ESP300_Control'));
   parser.addParameter('lockInAmpController', '', @(x) isa(x, 'SR830_Control'));
+  parser.addParameter('mainWindow', '', @ishandle);
   parser.addParameter('preferences', '', @isstruct);
   parser.addParameter('pumpLaserController', '', @(x) isa(x, 'DS345_Control'));
   parser.addParameter('settings', '', @isstruct);
@@ -72,17 +73,31 @@ function Run_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   end
   handles.laserScanController = parser.Results.laserScanController;
   handles.lockInAmpController = parser.Results.lockInAmpController;
+  handles.mainWindow = parser.Results.mainWindow;
   handles.preferences = parser.Results.preferences;
   handles.pumpLaserController = parser.Results.pumpLaserController;
   handles.settings = parser.Results.settings;
   handles.stageController = parser.Results.stageController;
   
+  % Set the window position
+  setpixelposition(hObject, handles.preferences.WindowPositions.run);
+  movegui(hObject, 'onscreen');
+  
   % Create the progress bar
   position = getpixelposition(handles.ProgressBarPlaceholder);
-  handles.ProgressBar = uiwaitbar(position);
+  handles.ProgressBar = uiwaitbar('Create', hObject, position);
   
   % Ensure the window is hidden
   set(hObject, 'Visible', 'Off');
+  
+  % Set the current statuses
+  handles.cancelling = false;
+  
+  % Create the amplitude and phase plots
+  handles.AmplitudePlot = subplot(1, 2, 2, 'Parent', handles.PlotsPlaceholder);
+  handles.PhasePlot = subplot(1, 2, 1, 'Parent', handles.PlotsPlaceholder);
+  title(handles.AmplitudePlot, 'Amplitude');
+  title(handles.PhasePlot, 'Phase');
 
   % Update handles structure
   guidata(hObject, handles);
@@ -100,38 +115,71 @@ function varargout = Run_OutputFcn(hObject, eventdata, handles)  %#ok<INUSL>
 end
 
 
-% --------------------------------------------------------------------
-% --------------------------------------------------------------------
-% --------------------------------------------------------------------
-function CancelButton_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to CancelButton (see GCBO)
+function RunWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<DEFNU>
+% hObject    handle to RunWindow (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
- set(hObject, 'CData', true);
- set(hObject, 'Enable', 'Off');
- set(hObject, 'String', 'Cancelling...');
+  if isfield(handles, 'preferences')
+    currentPosition = getpixelposition(hObject);
+    if ~isequal(currentPosition, handles.preferences.WindowPositions.run)
+      handles.preferences.WindowPositions.run = currentPosition;
+
+      % Update handles structure
+      guidata(hObject, handles);
+  
+      % Update any settings or preferences
+      Main('UpdateIniFiles', handles.mainWindow, handles.settings, handles.preferences);
+    end
+  end
+  
+  CancelButton_Callback(handles.CancelButton, eventdata, handles);
+end
+
+
+% --- Executes when RunWindow is resized.
+function RunWindow_SizeChangedFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to RunWindow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  position = getpixelposition(handles.ProgressBarPlaceholder);
+  setpixelposition(handles.ProgressBar, position);
 end
 
 
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
-function centered = Center(runWindow, handles) %#ok<DEFNU>
+function CancelButton_Callback(hObject, eventdata, handles) %#ok<INUSL>
+% hObject    handle to CancelButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+ handles.cancelling = true;
+ set(hObject, 'Enable', 'Off');
+ set(hObject, 'String', 'Cancelling...');
+ 
+ guidata(hObject.Parent, handles);
+end
+
+
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
 % Centers the pump laser to the probe laser
   % Calculate the positions
   scanAxes = [handles.settings.LaserController.xAxisID, handles.settings.LaserController.yAxisID];
   steps = handles.settings.CenterScan.steps;
-  if steps <=1
-    steps = 2;
+  if steps <= 7
+    steps = 7;
   end
   stepSize = handles.settings.CenterScan.scanDistance / (steps - 1);
   fineStepSize = stepSize / 25;
   halfPosition = handles.settings.CenterScan.scanDistance / 2;
-  currentPosition = handles.laserController.GetAbsoluteCoordinates(scanAxes);
+  currentPosition = handles.laserScanController.GetAbsoluteCoordinates(scanAxes);
   positions = [(currentPosition(1) - halfPosition):stepSize:(currentPosition(1) + halfPosition);...
                (currentPosition(2) - halfPosition):stepSize:(currentPosition(2) + halfPosition)];
-  finePosition = [(currentPosition(1) - halfPosition):fineStepSize:(currentPosition(1) + halfPosition);...
-                  (currentPosition(2) - halfPosition):fineStepSize:(currentPosition(2) + halfPosition)];
+  finePositions = [(currentPosition(1) - halfPosition):fineStepSize:(currentPosition(1) + halfPosition);...
+                   (currentPosition(2) - halfPosition):fineStepSize:(currentPosition(2) + halfPosition)];
   
   % Set the controller settings
   handles.pumpLaserController.SetFrequency(handles.settings.CenterScan.frequency);
@@ -141,57 +189,68 @@ function centered = Center(runWindow, handles) %#ok<DEFNU>
   
   % Create the data structures
   amplitude = NaN(2, steps);
-  amplitudeLine(2) = '';
   phase = NaN(2, steps);
-  phaseLine(2) = '';
+  amplitudeLine = zeros(2);
+  phaseLine = zeros(2);
 
   % Set up the window and prepare the plots
   uiwaitbar(handles.ProgressBar, 0);
   set(handles.ProgressText, 'String', '');
-  centerColormap = GetColormap(handles.settings.PlotSettings.centerColomap, 2);
-  clf(handles.AmplitudePlot, 'reset');
-  clf(handles.PhasePlot, 'reset');
+  centerColormap = GetColormap(handles.settings.PlotSettings.centerColormap, 2);
+  cla(handles.AmplitudePlot);
+  cla(handles.PhasePlot);
+  handles.AmplitudePlot.XLim = [(min(positions(:)) - stepSize), (max(positions(:)) + stepSize)];
+  handles.PhasePlot.XLim = [(min(positions(:)) - stepSize), (max(positions(:)) + stepSize)];
   hold(handles.AmplitudePlot, 'on');
   hold(handles.PhasePlot, 'on');
-  legendItems = {'X Axis - Data', 'X Axis - Fit', 'Y Axis - Data', 'Y Axis - Fit'};
-  set(runWindow, 'Visible', 'On');
+  legendItems = {'X Axis - Data', 'X Axis - Fit', 'X Axis - Best', 'Y Axis - Data', 'Y Axis - Fit', 'Y Axis - Best'};
   
   % Peform the scan
+  centered = false;
+  goodToGo = true;
+  recommendAgain = false;
   for a = 1:2
     % Scan over both the x and the y axis
     % Check to see if the user has pressed the cancel button
-    if get(handles.CancelButton, 'CData') == true
+    if IsCancelling(handles);
+      goodToGo = false;
       break;
     end
 
     % Set up the plots for the next scan
-    amplitudeLine(a) = plot(handles.AmplitudePlot, positions(a,:), amplitude(a,:), 'Color', centerColormap(a), 'Line', 'none', 'Marker', handles.settings.PlotSettings.centerXSymbol);
-    phaseLine(a) = plot(handles.PhasePlot, positions(a,:), phase(a,:), 'Color', centerColormap(a), 'Line', 'none', 'Marker', handles.settings.PlotSettings.centerYSymbol);
+    if a == 1
+      marker = handles.settings.PlotSettings.centerXSymbol;
+    else
+      marker = handles.settings.PlotSettings.centerYSymbol;
+    end
+    amplitudeLine(a) = plot(handles.AmplitudePlot, positions(a,:), amplitude(a,:), 'Color', centerColormap(a,:), 'LineStyle', 'none', 'Marker', marker);
+    phaseLine(a) = plot(handles.PhasePlot, positions(a,:), phase(a,:), 'Color', centerColormap(a,:), 'LineStyle', 'none', 'Marker', marker);
     switch a
       case 1
         axisName = 'X';
-        legend(handles.AmplitudePlot, legendItems{1});
-        legend(handles.PhasePlot, legendItems{1});
+        legend(handles.AmplitudePlot, legendItems{1}, 'Location', 'South');
+        legend(handles.PhasePlot, legendItems{1}, 'Location', 'South');
         
       case 2
         axisName = 'Y';
-        legend(handles.AmplitudePlot, legendItems{1:3});
-        legend(handles.PhasePlot, legendItems{1}, legendItems{3});
+        legend(handles.AmplitudePlot, legendItems{1:4}, 'Location', 'South');
+        legend(handles.PhasePlot, legendItems{1}, legendItems{4}, 'Location', 'South');
     end
     set(handles.ProgressText, 'String', sprintf('Centering the lasers...  Axis: %s (%i of 2)', axisName, a));
     
     % Account for hysteresis of the stage
-    handles.stageController.MinimizeHysteresis(scanAxes(a), positions(a,1:2));
+    handles.laserScanController.MinimizeHysteresis(scanAxes(a), positions(a,1:2));
     
     for i = 1:steps
       % Check to see if the user has pressed the cancel button
-      if get(handles.CancelButton, 'CData') == true
+      if IsCancelling(handles)
+        goodToGo = false;
         break;
       end
 
       % Move to the scan position
-      handles.laserController.MoveAxis(scanAxes(a), positions(a,i));
-      handles.laserController.WaitForAction(scanAxes(a));
+      handles.laserScanController.MoveAxis(scanAxes(a), positions(a,i));
+      handles.laserScanController.WaitForAction(scanAxes(a));
 
       % Give the lock-in amp time to stabilize
       handles.lockInAmpController.Chill();
@@ -207,50 +266,67 @@ function centered = Center(runWindow, handles) %#ok<DEFNU>
       % Update the progress bar
       uiwaitbar(handles.ProgressBar, (i + ((a - 1) * steps)) / (steps * 2));
     end
+    
+    if ~goodToGo
+      break;
+    end
 
     % Fit the data and look for a maximum in the amplitude
-    [coefficients, ~, mu] = polyfit(positions(a,:), amplitude(a,:), 5);
-    derivative = polyder(coefficients);
-    maxPosition = roots(derivative);
+    [mu, sigma, scale] = FitGaussian(positions(a,:), amplitude(a,:) - min(amplitude(a,:)));
 
     % Plot the fit
-    evaluatedFit = polyval(coefficients, finePosition, [], mu);
-    plot(handles.AmplitudePlot, finePositions, evaluatedFit, handles.settings.PlotSettings.focusFitLineStyle, 'Color', centerColormap(a));
+    evaluatedFit = gaussian(finePositions(a,:), mu, sigma, scale) + min(amplitude(a,:));
+    [~, maxPositionIndex] = max(evaluatedFit);
+    maxPosition = finePositions(a,maxPositionIndex);
+    plot(handles.AmplitudePlot, finePositions(a,:), evaluatedFit, 'LineStyle', handles.settings.PlotSettings.fitLineStyle, 'Color', centerColormap(a,:));
+    plot(handles.AmplitudePlot, [maxPosition, maxPosition], get(handles.AmplitudePlot, 'YLim'), 'Color', centerColormap(a,:));
 
     % Move the stage to the ideal position
-    handles.stageController.MinimizeHysteresis(scanAxes(a), positions(a,1:2));
-    handles.stageController.MoveAxis(scanAxes(a), maxPosition);
-    handles.stageController.WaitForAction(scanAxes(a));
+    if maxPosition > positions(a,end-2) || maxPosition < positions(a,3)
+      recommendAgain = recommendAgain | true;
+    else
+      recommendAgain = recommendAgain | false;
+    end
+    handles.laserScanController.MinimizeHysteresis(scanAxes(a), positions(a,1:2));
+    handles.laserScanController.MoveAxis(scanAxes(a), maxPosition);
+    handles.laserScanController.WaitForAction(scanAxes(a));
+    handles.laserScanController.SetToZero(scanAxes(a));
   end
   
-  % Some final plotting items
-  legend(handles.AmplitudePlot, legendItems);
-  hold(handles.AmplitudePlot, 'off');
-  hold(handles.PhasePlot, 'off');
-  
-  % Check with the user to make sure everything looks good
-  choices.Again = 'No, Center Again';
-  choices.Good = 'Yes';
-  response = questdlg({'Do the centering results look good?'},...
-                      'Check results from centering',...
-                      choices.Again, choices.Good, choices.Good);
-  switch response
-    case choices.Again
-      centered = false;
+  if goodToGo
+    % Some final plotting items
+    legend(handles.AmplitudePlot, legendItems, 'Location', 'South');
+    hold(handles.AmplitudePlot, 'off');
+    hold(handles.PhasePlot, 'off');
 
-    case choices.Good
-      centered = true;
+    % Check with the user to make sure everything looks good
+    choices.Again = 'No, Center Again';
+    choices.Good = 'Yes';
+    if recommendAgain
+      choices.Recommended = choices.Again;
+    else
+      choices.Recommended = choices.Good;
+    end
+    response = questdlg({'Do the centering results look good?'},...
+                        'Check results from centering',...
+                        choices.Again, choices.Good, choices.Recommended);
+    switch response
+      case choices.Again
+        centered = false;
+
+      case choices.Good
+        centered = true;
+    end
+  else
+    % Move the stages back to their original positions
+    handles.laserScanController.MoveAxis(scanAxes, currentPosition);
   end
-
-  % Hide the window to prepare for the next process to run
-  set(runWindow, 'Visible', 'Off');
 end
 
 
-function [data, success] = Data(runWindow, handles) %#ok<DEFNU>
+function [data, success] = Data(handles) %#ok<DEFNU>
 % Performs a scan of the sample
   data = '';
-  success = false;
   
   % Calculate the positions
   xAxisID = handles.settings.LaserController.xAxisID;
@@ -260,50 +336,53 @@ function [data, success] = Data(runWindow, handles) %#ok<DEFNU>
   end
   stepSize = handles.settings.DataScan.scanDistance / (steps - 1);
   halfPosition = handles.settings.DataScan.scanDistance / 2;
-  currentPosition = handles.laserController.GetAbsoluteCoordinates(xAxisID);
+  currentPosition = handles.laserScanController.GetAbsoluteCoordinates(xAxisID);
   positions = (currentPosition - halfPosition):stepSize:(currentPosition + halfPosition);
   
   % Create the data structures
   frequencies = handles.settings.DataScan.frequencies;
   numberOfFrequencies = length(frequencies);
   amplitude = NaN(numberOfFrequencies, steps);
+  amplitudeLine = NaN(numberOfFrequencies, 1);
   phase = NaN(numberOfFrequencies, steps);
+  phaseLine = NaN(numberOfFrequencies, 1);
   redoTest = true;
 
   % Set up the window and prepare the plots
   uiwaitbar(handles.ProgressBar, 0);
   set(handles.ProgressText, 'String', '');
-  centerColormap = GetColormap(handles.settings.PlotSettings.centerColomap, numberOfFrequencies);
-  clf(handles.AmplitudePlot, 'reset');
-  clf(handles.PhasePlot, 'reset');
+  centerColormap = GetColormap(handles.settings.PlotSettings.centerColormap, numberOfFrequencies);
+  cla(handles.AmplitudePlot);
+  cla(handles.PhasePlot);
+  hold(handles.AmplitudePlot, 'on');
+  hold(handles.PhasePlot, 'on');
   colormap(handles.AmplitudePlot, centerColormap);
   colormap(handles.PhasePlot, centerColormap);
   legendItems = cell(1, numberOfFrequencies);
-  set(runWindow, 'Visible', 'On');
   
   % Peform the scan
   f = 1;
+  success = true;
   while f <= numberOfFrequencies % Don't use a for loop - we might need to repeat a frequency
     % Scan over both the x and the y axis
     % Check to see if the user has pressed the cancel button
-    if get(handles.CancelButton, 'CData') == true
+    if IsCancelling(handles) || success == false
+      success = false;
       break;
     end
     
     % Account for hysteresis of the stage
-    handles.stageController.MinimizeHysteresis(xAxisID, positions);
+    handles.laserScanController.MinimizeHysteresis(xAxisID, positions(1:2));
     
     % Check for performing a test run
-    if handles.preferences.CollectData.textRun == 1 && redoTest
+    if handles.preferences.CollectData.testRun == 1 && redoTest
       % Set up for a test of the current location
       frequency = handles.settings.DataScan.testFrequency;
       timeConstant = handles.settings.DataScan.testLockInAmpTimeConstant;
       baseProgressString = sprintf('Data Scan Test... Frequency: %g kHz', handles.settings.DataScan.testFrequency / 1000);
-      legendItems{1} = sprintf('Test Run @ %g kHz', frequency);
+      legendItems{1} = sprintf('Test Run @ %g kHz', frequency / 1000);
     else
       % Set up for a full scan
-      hold(handles.AmplitudePlot, 'on');
-      hold(handles.PhasePlot, 'on');
       frequency = frequencies(f);
       timeConstant = handles.settings.DataScan.lockInAmpTimeConstant;
       baseProgressString = sprintf('Data Scan... Frequency: %g kHz (%i of %i)', frequencies(f) / 1000, f, numberOfFrequencies);
@@ -311,10 +390,14 @@ function [data, success] = Data(runWindow, handles) %#ok<DEFNU>
     end
 
     % Set up the plots for the next scan
-    amplitudeLine = plot(handles.AmplitudePlot, positions, amplitude(f,:), 'Line', handles.settings.PlotSettings.amplitudeLineStyle, 'Marker', handles.settings.PlotSettings.amplitudeMarker);
-    phaseLine = plot(handles.PhasePlot, positions, phase(f,:), 'Line', handles.settings.PlotSettings.phaseLineStyle, 'Marker', handles.settings.PlotSettings.phaseMarker);
-    legend(handles.AmplitudePlot, legendItems);
-    legend(handles.PhasePlot, legendItems);
+    if isnan(amplitudeLine(f))
+      amplitudeLine(f) = plot(handles.AmplitudePlot, positions, amplitude(f,:), 'LineStyle', 'none', 'Marker', handles.settings.PlotSettings.amplitudeMarker);
+      phaseLine(f) = plot(handles.PhasePlot, positions, phase(f,:), 'LineStyle', 'none', 'Marker', handles.settings.PlotSettings.phaseMarker);
+      handles.AmplitudePlot.XLim = [(positions(1) - stepSize), (positions(end) + stepSize)];
+      handles.PhasePlot.XLim = [(positions(1) - stepSize), (positions(end) + stepSize)];
+    end
+    legend(handles.AmplitudePlot, legendItems{1:f}, 'Location', 'South');
+    legend(handles.PhasePlot, legendItems{1:f}, 'Location', 'South');
     
     % Set up the equipment
     handles.pumpLaserController.SetFrequency(frequency);
@@ -324,13 +407,14 @@ function [data, success] = Data(runWindow, handles) %#ok<DEFNU>
     for i = 1:steps
       set(handles.ProgressText, 'String', sprintf('%s - Postion: %i of %i', baseProgressString, i, steps));
       % Check to see if the user has pressed the cancel button
-      if get(handles.CancelButton, 'CData') == true
+      if IsCancelling(handles)
+        success = false;
         break;
       end
 
       % Move to the scan position
-      handles.stageController.MoveAxis(scanAxes(a), positions(a,i));
-      handles.stageController.WaitForAction(scanAxes(a));
+      handles.laserScanController.MoveAxis(xAxisID, positions(i));
+      handles.laserScanController.WaitForAction(xAxisID);
 
       % Give the lock-in amp time to stabilize
       handles.lockInAmpController.Chill();
@@ -344,50 +428,72 @@ function [data, success] = Data(runWindow, handles) %#ok<DEFNU>
       set(phaseLine(f), 'YData', phase(f,:));
 
       % Update the progress bar
-      uiwaitbar(handles.ProgressBar, (i + ((f - 1) * steps)) / (numberOfFrequencies * steps));
+      if handles.preferences.CollectData.testRun == 1 && redoTest
+        uiwaitbar(handles.ProgressBar, i / steps);
+      else
+        uiwaitbar(handles.ProgressBar, (i + ((f - 1) * steps)) / (numberOfFrequencies * steps));
+      end
     end
     
-    if handles.preferences.CollectData.textRun == 1 && redoTest
+    if handles.preferences.CollectData.testRun == 1 && redoTest && success == true
       userResponse = questdlg('Do the test measurements look good?', 'Good location?', 'Yes', 'No', 'Abort', 'Yes');
       switch userResponse
         case 'Yes'
+          f = f - 1;
           redoTest = false;
+          % Reset the plots
+          amplitude(1,:) = NaN(1, steps);
+          set(amplitudeLine(1), 'YData', amplitude(1,:));
+          phase(1,:) = NaN(1, steps);
+          set(phaseLine(1), 'YData', phase(1,:));
           
         case 'No'
           uiwait(msgbox('I will perform another test at the same location.'));
           
         case 'Abort'
+          success = false;
           return;
       end
     end
+    
+    if ~redoTest
+      f = f + 1;
+    end
   end
   
-  % Set the data
-  data.frequencies = frequencies;
-  data.timeConstant = timeConstant;
-  data.positions = positions;
-  data.amplitudes = amplitude;
-  data.phase = phase;
-
-  % Hide the window to prepare for the next process to run
-  set(runWindow, 'Visible', 'Off');
+  % Clean up
+  hold(handles.AmplitudePlot, 'off');
+  hold(handles.PhasePlot, 'off');
+  
+  % Move the stages back to their original positions
+  handles.laserScanController.MoveAxis(xAxisID, currentPosition);
+  
+  if success
+    % Set the data
+    data.frequencies = frequencies;
+    data.timeConstant = timeConstant;
+    data.positions = positions;
+    data.amplitudes = amplitude;
+    data.phase = phase;
+  end
 end
 
 
-function [focused, maxPosition] = Focus(runWindow, handles) %#ok<DEFNU>
+function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
 % Moves the Z stage to focus the lasers
   % Calculate the positions
   zAxisID = handles.settings.StageController.zAxisID;
   steps = handles.settings.FocusScan.steps;
-  if steps <=1
-    steps = 2;
+  if steps <= 7
+    steps = 7;
   end
   stepSize = handles.settings.FocusScan.scanDistance / (steps - 1);
-  fineStepSize = stepSize / 25;
   halfPosition = handles.settings.FocusScan.scanDistance / 2;
   currentPosition = handles.stageController.GetAbsoluteCoordinates(zAxisID);
+  ZOriginPosition = handles.settings.PositionLocations.scan(3);
+  relativeZPosition = currentPosition - ZOriginPosition;
   positions = (currentPosition - halfPosition):stepSize:(currentPosition + halfPosition);
-  finePosition = (currentPosition - halfPosition):fineStepSize:(currentPosition + halfPosition);
+  relativePositions = (relativeZPosition - halfPosition):stepSize:(relativeZPosition + halfPosition);
   
   % Set the controller settings
   handles.pumpLaserController.SetFrequency(handles.settings.FocusScan.frequency);
@@ -402,20 +508,29 @@ function [focused, maxPosition] = Focus(runWindow, handles) %#ok<DEFNU>
   % Set up the window and prepare the plots
   uiwaitbar(handles.ProgressBar, 0);
   set(handles.ProgressText, 'String', '');
-  clf(handles.AmplitudePlot, 'reset');
-  clf(handles.PhasePlot, 'reset');
-  amplitudeLine = plot(handles.AmplitudePlot, positions, amplitude, handles.settings.PlotSettings.amplitude, 'Line', 'none', 'Marker', handles.settings.PlotSettings.focusMarker);
-  phaseLine = plot(handles.PhasePlot, positions, phase, handles.settings.PlotSettings.phase, 'Line', 'none', 'Marker', handles.settings.PlotSettings.focusMarker);
+  cla(handles.AmplitudePlot);
+  cla(handles.PhasePlot);
+  handles.AmplitudePlot.XLim = [(relativePositions(1) - stepSize), (relativePositions(end) + stepSize)];
+  handles.PhasePlot.XLim = [(relativePositions(1) - stepSize), (relativePositions(end) + stepSize)];
   hold(handles.AmplitudePlot, 'on');
-  set(runWindow, 'Visible', 'On');
+  hold(handles.PhasePlot, 'on');
+  amplitudeLine = plot(handles.AmplitudePlot, relativePositions, amplitude, 'LineStyle', 'none', 'Marker', handles.settings.PlotSettings.amplitudeMarker);
+  phaseLine = plot(handles.PhasePlot, relativePositions, phase, 'LineStyle', 'none', 'Marker', handles.settings.PlotSettings.phaseMarker);
+  legendItems = {'Data', 'Fit', 'Best'};
+  legend(handles.AmplitudePlot, legendItems{1}, 'Location', 'South');
+  legend(handles.PhasePlot, legendItems{1}, 'Location', 'South');
   
   % Account for hysteresis of the stage
   handles.stageController.MinimizeHysteresis(zAxisID, positions(1:2));
   
   % Peform the scan
+  focused = false;
+  goodToGo = true;
+  relativeFocusPosition = relativeZPosition;
   for i = 1:steps
     % Check to see if the user has pressed the cancel button
-    if get(handles.CancelButton, 'CData') == true
+    if IsCancelling(handles)
+      goodToGo = false;
       break;
     end
     
@@ -439,45 +554,68 @@ function [focused, maxPosition] = Focus(runWindow, handles) %#ok<DEFNU>
     uiwaitbar(handles.ProgressBar, i / steps);
   end
   
-  % Fit the data and look for a maximum in the amplitude
-  [coefficients, ~, mu] = polyfit(positions, amplitude, 5);
-  derivative = polyder(coefficients);
-  maxPosition = roots(derivative);
-  
-  % Plot the fit
-  figure(handles.AmplitudePlot)
-  evaluatedFit = polyval(coefficients, finePosition, [], mu);
-  plot(handles.amplitudePlot, finePositions, evaluatedFit, handles.settings.PlotSettings.focusFitLineSpec);
-  if maxPosition >= positions(1) && maxPosition <= positions(steps)
-    % The maximum was within the scan range
-    focused = true;
-  else
-    % It appears that the maximum was outside the scan range
-    [~, maxPosition] = max(evaluatedFit);
-    choices.Again = 'Focus Again';
-    choices.Ignore = 'Ignore and Continue';
-    response = questdlg({'It appears that the optimal focus distance is outside the scanned range.'...
-                         ''...
-                         'What would you like to do?'},...
-                        'Addition Focus Recommended',...
-                        choices.Again, choices.Ignore, choices.Again);
+  if goodToGo
+    % Fit the data and look for a maximum in the amplitude
+    [coefficients, ~, mu] = polyfit(positions, amplitude, 5);
+    fineStepSize = stepSize / 25;
+    finePositions = (currentPosition - halfPosition):fineStepSize:(currentPosition + halfPosition);
+    fineRelativePositions = (relativeZPosition - halfPosition):fineStepSize:(relativeZPosition + halfPosition);
+    evaluatedFit = polyval(coefficients, finePositions, [], mu);
+    [~, maxPositionIndex] = max(evaluatedFit);
+    maxPosition = finePositions(maxPositionIndex);
+    relativeFocusPosition = maxPosition - ZOriginPosition;
+
+    % Move the stage to the ideal position
+    if maxPosition > positions(end-2)
+      recommendAgain = true;
+    elseif maxPosition < positions(3)
+      recommendAgain = true;
+    else
+      recommendAgain = false;
+    end
+
+    % Plot the fit
+    plot(handles.AmplitudePlot, fineRelativePositions, evaluatedFit, 'LineStyle', handles.settings.PlotSettings.fitLineStyle);
+    plot(handles.AmplitudePlot, [relativeFocusPosition, relativeFocusPosition], get(handles.AmplitudePlot, 'YLim'));
+    legend(handles.AmplitudePlot, legendItems, 'Location', 'South');
+    
+    % Check with the user to make sure everything looks good
+    choices.Again = 'No, Focus Again';
+    choices.Good = 'Yes';
+    if recommendAgain
+      choices.Recommended = choices.Again;
+    else
+      choices.Recommended = choices.Good;
+    end
+    response = questdlg({'Do the focus results look good?'},...
+                        'Check results from focusing',...
+                        choices.Again, choices.Good, choices.Recommended);
     switch response
       case choices.Again
         focused = false;
-        
-      case choices.Ignore
+
+      case choices.Good
         focused = true;
     end
+
+    % Move the stage to the ideal position
+    handles.stageController.MinimizeHysteresis(zAxisID, positions(1:2));
+    handles.stageController.MoveAxis(zAxisID, maxPosition);
+    handles.stageController.WaitForAction(zAxisID);
+  else
+    % Move the stages back to their original positions
+    handles.stageController.MoveAxis(zAxisID, currentPosition);
   end
   
-  % Move the stage to the ideal position
-  handles.stageController.MinimizeHysteresis(zAxisID, positions(1:2));
-  handles.stageController.MoveAxis(zAxisID, maxPosition);
-  handles.stageController.WaitForAction(zAxisID);
-  
-  % Hide the window to prepare for the next process to run
+  % Prepare for the next process to run
   hold(handles.AmplitudePlot, 'off');
-  set(runWindow, 'Visible', 'Off');
+  hold(handles.PhasePlot, 'off');
+end
+
+
+function isCancelling = IsCancelling(handles)
+% Checks to see if the user has requested a cancel operation
+ isCancelling = strcmp(get(handles.CancelButton, 'Enable'), 'off');
 end
 
 

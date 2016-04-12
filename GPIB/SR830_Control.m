@@ -49,7 +49,7 @@ classdef SR830_Control < GPIB_Interface
     
     function amplitude = GetAmplitude(myself)
     % Get the amplitude of the matching signal
-      amplitude = str2double(myself.GetSignalValue(myself.amplitudeOutputIndex));
+      amplitude = myself.GetSignalValue(myself.amplitudeOutputIndex);
     end
     
     function value = GetAuxInputValue(myself, index)
@@ -65,12 +65,12 @@ classdef SR830_Control < GPIB_Interface
     
     function phase = GetPhase(myself)
     % Get the phase of the matching signal
-      phase = str2double(myself.GetSignalValue(myself.phaseOutputIndex));
+      phase = myself.GetSignalValue(myself.phaseOutputIndex);
     end
     
     function shift = GetPhaseShift(myself)
     % Gets the current phase shift
-      shift = str2double(GPIB_Interface.Communicate(myself, 'PHAS ?'));
+      shift = str2double(GPIB_Interface.Communicate(myself, 'PHAS?'));
     end
     
     function index = GetSensitivityConstantIndex(myself)

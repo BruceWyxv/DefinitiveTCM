@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="249878548" file="C:\Users\user\Desktop\DefinitiveTCM.git\DefinitiveTCM.prj" location="C:\Users\user\Desktop\DefinitiveTCM.git" name="DefinitiveTCM" preferred-package-location="C:\Users\user\Desktop\DefinitiveTCM.git\DefinitiveTCM\for_redistribution" preferred-package-type="package.type.exe" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="3180508549" file="C:\Users\user\Desktop\DefinitiveTCM.git\DefinitiveTCM.prj" location="C:\Users\user\Desktop\DefinitiveTCM.git" name="DefinitiveTCM" preferred-package-location="C:\Users\user\Desktop\DefinitiveTCM\for_redistribution" preferred-package-type="package.type.exe" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>DefinitiveTCM</param.appname>
     <param.icon />
     <param.icons />
@@ -34,7 +34,7 @@
     <param.package.mcr>true</param.package.mcr>
     <param.no.mcr>false</param.no.mcr>
     <param.web.mcr.name>MyAppInstaller_web</param.web.mcr.name>
-    <param.package.mcr.name>MyAppInstaller_mcr</param.package.mcr.name>
+    <param.package.mcr.name>Install DefinitiveTCM</param.package.mcr.name>
     <param.no.mcr.name>MyAppInstaller_app</param.no.mcr.name>
     <param.windows.command.prompt>true</param.windows.command.prompt>
     <param.create.log>true</param.create.log>
@@ -53,12 +53,11 @@
       <param.target.type />
       <param.no.mcr />
       <param.web.mcr.name />
-      <param.package.mcr.name />
       <param.no.mcr.name />
       <param.windows.command.prompt />
     </unset>
     <fileset.main>
-      <file>${PROJECT_ROOT}\GUI\Main.m</file>
+      <file>${PROJECT_ROOT}\StartDefinitiveTCM.m</file>
     </fileset.main>
     <fileset.resources>
       <file>${PROJECT_ROOT}\GUI\Controls_AddOnTemplate.fig</file>
@@ -69,7 +68,7 @@
       <file>${PROJECT_ROOT}\Resources</file>
     </fileset.package>
     <fileset.depfun>
-      <file>${PROJECT_ROOT}\GPIB\DG345_Control.m</file>
+      <file>${PROJECT_ROOT}\GPIB\DS345_Control.m</file>
       <file>${PROJECT_ROOT}\GPIB\ESP300_Control.m</file>
       <file>${PROJECT_ROOT}\GPIB\GPIB_Interface.m</file>
       <file>${PROJECT_ROOT}\GPIB\ProbeLaser_Control.m</file>
@@ -80,10 +79,17 @@
       <file>${PROJECT_ROOT}\GUI\Controls_SamplePosition.m</file>
       <file>${PROJECT_ROOT}\GUI\ImageToggle.m</file>
       <file>${PROJECT_ROOT}\GUI\Main.fig</file>
+      <file>${PROJECT_ROOT}\GUI\Main.m</file>
+      <file>${PROJECT_ROOT}\GUI\Run.fig</file>
+      <file>${PROJECT_ROOT}\GUI\Run.m</file>
+      <file>${PROJECT_ROOT}\GUI\uiwaitbar.m</file>
       <file>${PROJECT_ROOT}\Utilities\Database.m</file>
       <file>${PROJECT_ROOT}\Utilities\Files.m</file>
+      <file>${PROJECT_ROOT}\Utilities\FitGaussian.m</file>
+      <file>${PROJECT_ROOT}\Utilities\gaussian.m</file>
       <file>${PROJECT_ROOT}\Utilities\Images.m</file>
       <file>${PROJECT_ROOT}\Utilities\ini2struct.m</file>
+      <file>${PROJECT_ROOT}\Utilities\isFloatEqual.m</file>
       <file>${PROJECT_ROOT}\Utilities\Properties.m</file>
       <file>${PROJECT_ROOT}\Utilities\Strings.m</file>
       <file>${PROJECT_ROOT}\Utilities\struct2ini.m</file>

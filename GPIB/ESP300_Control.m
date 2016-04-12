@@ -95,7 +95,7 @@ classdef ESP300_Control < GPIB_Interface
       end
       
       hysteresisPosition = firstTwoPositions(1) + 4 * (firstTwoPositions(1) - firstTwoPositions(2));
-      myself.MoveAxis(axis, 'PA', hysteresisPosition);
+      myself.MoveAxis(axis, hysteresisPosition);
       myself.WaitForAction(axis);
     end
     
@@ -112,6 +112,15 @@ classdef ESP300_Control < GPIB_Interface
       if nargin == 4 && progressBar
         myself.WaitForAction(axis, 'FinalPosition', position, 'Message', 'Please wait while the stage is moving...');
       end
+    end
+    
+    function SetToZero(myself, axis)
+    % Set the current position of the axis as 0.0
+     if isnumeric(axis)
+       myself.Command(axis, 'DH');
+     else
+       warning('ESP300_Control:BadArgument', '''axis'' must be numeric.');
+     end
     end
     
     function WaitForAction(myself, axis, varargin)

@@ -22,7 +22,7 @@ function varargout = Controls(varargin)
 
 % Edit the above text to modify the response to help PositionSample
 
-% Last Modified by GUIDE v2.5 17-Mar-2016 13:44:41
+% Last Modified by GUIDE v2.5 07-Apr-2016 10:00:37
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -56,7 +56,6 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 
   % Choose default command line output for Controls
   handles.output = hObject;
-  movegui(hObject, 'center');
   
   % Check the input arguments
   if ~isempty(varargin)
@@ -90,6 +89,10 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     handles.settings = parser.Results.settings;
     handles.stageController = parser.Results.stageController;
   end
+  
+  % Set the window position
+  movegui(hObject, handles.preferences.WindowPositions.controls);
+  movegui(hObject, 'onscreen');
   
   % Initialize the camera view
   axes(handles.CameraView)
@@ -162,6 +165,15 @@ function ControlsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,
 % hObject    handle to ControlsWindow (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  % Check to see if the user moved the window at all
+  currentPosition = getpixelposition(hObject);
+  if currentPosition(1:2) ~= handles.preferences.WindowPositions.controls
+    handles.preferences.WindowPositions.controls = currentPosition(1:2);
+
+    % Update handles structure
+    guidata(hObject, handles);
+  end
+  
   % Update any settings or preferences
   Main('UpdateIniFiles', handles.mainWindow, handles.settings, handles.preferences);
   
@@ -726,6 +738,21 @@ function [value, clean] = SanitizeEdit(edit, stageRange)
 end
 
 
+function SetControlState(handles, state) %#ok<DEFNU>
+% Disables all controls on this window
+  allControls = [handles.StepSizeGroup,...
+                 handles.ControlSystem,...
+                 handles.XAxisGroup,...
+                 handles.YAxisGroup,...
+                 handles.ZAxisGroup,...
+                 handles.Done];
+  set(findall(allControls, '-property', 'Enable'), 'Enable', state);
+  
+  addOnHandle = str2func(handles.addOn.Tag);
+  addOnHandle('SetControlState', handles, state);
+end
+
+
 function StepLeftLarge(slider, eventdata, handles, Slider_Callback)
 % Step the stage left as if the slider had moved a full thumb's distance
   newValue = get(slider, 'Value') - GetLargeStep(slider, handles);
@@ -810,6 +837,13 @@ function UpdateControlSystem(handles)
 end
 
 
+function UpdateFocusPosition(handles, focusPosition) %#ok<DEFNU>
+% Update the position of the Z Axis based on the best focus position
+  set(handles.ZEdit, 'String', num2str(focusPosition));
+  UpdateEdit2Slider(handles.ZEdit, handles.ZSlider, handles.stageRanges(3));
+end
+
+
 function UpdateEdit2Slider(edit, slider, stageRange)
 % Updates the values of the sliders according to the values entered in the
 % edit boxes. Also sanitizes the input.
@@ -861,8 +895,8 @@ end
 
 
 function UpdateSlider2Edit(slider, axis, edit, stageRange, handles)
-% Updates the values of the edit boxes according to the values entered in
-% the sliders.
+% Updates the values of the edit boxes according to the values of the
+% sliders.
   TrackSlider2Edit(slider, edit, stageRange)
   
   MoveStageToSliderPosition(axis, slider, handles);

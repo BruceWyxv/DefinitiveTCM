@@ -22,7 +22,7 @@ function varargout = Main(varargin)
 
 % Edit the above text to modify the response to help Main
 
-% Last Modified by GUIDE v2.5 08-Mar-2016 17:38:07
+% Last Modified by GUIDE v2.5 07-Apr-2016 09:42:53
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -67,6 +67,10 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.preferences = ini2struct(handles.preferencesFile);
   handles.old.Preferences = handles.preferences;
   
+  % Set the window position
+  movegui(hObject, handles.preferences.WindowPositions.main);
+  movegui(hObject, 'onscreen');
+  
   % Get the GUI add-ons
   handles.PositionSampleGUIAddOn = open('Controls_SamplePosition.fig');
   handles.CollectDataGUIAddOn = open('Controls_CollectData.fig');
@@ -83,7 +87,6 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   imshow(handles.settings.TCMLogo);
 
   % Update handles structure
-  movegui(hObject, 'center');
   guidata(hObject, handles);
 end
 
@@ -109,6 +112,18 @@ function MainWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFN
   if isfield(handles, 'ControlGUI')
     delete(handles.ControlGUI);
   end
+  
+  % Check to see if the user moved the window at all
+  currentPosition = getpixelposition(hObject);
+  if currentPosition(1:2) ~= handles.preferences.WindowPositions.main
+    handles.preferences.WindowPositions.main = currentPosition(1:2);
+
+    % Update handles structure
+    guidata(hObject, handles);
+  end
+  
+  % Update the settings and preferences
+  UpdateIniFiles(hObject, handles.settings, handles.preferences)
 
 % Hint: delete(hObject) closes the figure
   delete(hObject);
@@ -143,16 +158,18 @@ function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
   % Open the Controls window with the PositionSample add-on
   % Controls is modal, which means that Main will be blocked until
   % Controls closes.
-  handles.ControlGUI =...
-    Controls('AddOn', handles.PositionSampleGUIAddOn,...
-             'Cameras', handles.cameras,...
-             'MainWindow', handles.output,...
-             'Preferences', handles.preferences,...
-             'Settings', handles.settings,...
-             'StageController', handles.stageController);
-  
-  % Update handles structure
-  guidata(hObject, handles);
+  if ~SwitchIfOpen(handles, handles.PositionSampleGUIAddOn);
+    handles.ControlGUI =...
+      Controls('AddOn', handles.PositionSampleGUIAddOn,...
+               'Cameras', handles.cameras,...
+               'MainWindow', handles.output,...
+               'Preferences', handles.preferences,...
+               'Settings', handles.settings,...
+               'StageController', handles.stageController);
+
+    % Update handles structure
+    guidata(hObject, handles);
+  end
 end
 
 
@@ -167,20 +184,22 @@ function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to CollectData (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  handles.ControlGUI =...
-    Controls('AddOn', handles.CollectDataGUIAddOn,...
-             'Cameras', handles.cameras,...
-             'LaserScanController', handles.laserScanController,...
-             'LockInAmpController', handles.lockInAmpController,...
-             'MainWindow', handles.output,...
-             'Preferences', handles.preferences,...
-             'ProbeLaserController', handles.probeLaserController,...
-             'PumpLaserController', handles.pumpLaserController,...
-             'Settings', handles.settings,...
-             'StageController', handles.stageController);
-  
-  % Update handles structure
-  guidata(hObject, handles);
+  if ~SwitchIfOpen(handles, handles.CollectDataGUIAddOn);
+    handles.ControlGUI =...
+      Controls('AddOn', handles.CollectDataGUIAddOn,...
+               'Cameras', handles.cameras,...
+               'LaserScanController', handles.laserScanController,...
+               'LockInAmpController', handles.lockInAmpController,...
+               'MainWindow', handles.output,...
+               'Preferences', handles.preferences,...
+               'ProbeLaserController', handles.probeLaserController,...
+               'PumpLaserController', handles.pumpLaserController,...
+               'Settings', handles.settings,...
+               'StageController', handles.stageController);
+
+    % Update handles structure
+    guidata(hObject, handles);
+  end
 end
 
 
@@ -254,6 +273,7 @@ function handles = ConnectHardware(handles)
   handles.lockInAmpController =...
     SR830_Control(handles.settings.LockInAmp.address,...
                   'Lock-in Amplifier');
+  handles.lockInAmpController.SetSensitivityConstantValue(handles.settings.LockInAmp.sensitivityConstant);
   handles.probeLaserController =...
     ProbeLaser_Control(handles.lockInAmpController,...
                        handles.settings.LockInAmp.probePowerChannel);
@@ -288,7 +308,28 @@ function handles = DisconnectHardware(handles)
   handles.stageController = '';
 end
 
-function UpdateIniFiles(hObject, settings, preferences) %#ok<DEFNU>
+function isOpen = SwitchIfOpen(handles, addOn)
+% Makes the ControlsGUI context if the window is already open
+  isOpen = false;
+  if isfield(handles, 'ControlGUI');
+    if isvalid(handles.ControlGUI)
+      % Get the currently loaded addOn
+      controlHandles = guidata(handles.ControlGUI);
+      
+      if controlHandles.addOn == addOn
+        % The current add on is already loaded and displayed, make it the
+        % primary figure
+        figure(handles.ControlGUI);
+        isOpen = true;
+      else
+        % Another add on is loaded, so close it
+        close(handles.ControlGUI);
+      end
+    end
+  end
+end
+
+function UpdateIniFiles(hObject, settings, preferences)
 % Update the settings and preferences as needed
   handles = guidata(hObject);
   
@@ -303,4 +344,9 @@ function UpdateIniFiles(hObject, settings, preferences) %#ok<DEFNU>
     struct2ini(handles.preferencesFile, preferences);
     fprintf('Modified preferences detected. Changes have been saved to ''%s''\n', handles.preferencesFile);
   end
+  
+  % Update the local instance
+  handles.settings = settings;
+  handles.preferences = preferences;
+  guidata(hObject, handles);
 end
