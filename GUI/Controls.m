@@ -63,8 +63,8 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     parser.addParameter('addOn', '', @ishandle);
     parser.addParameter('cameras', '', @isstruct);
     parser.addParameter('mainWindow', '', @ishandle);
-    parser.addParameter('preferences', '', @isstruct);
-    parser.addParameter('settings', '', @isstruct);
+    parser.addParameter('preferences', '', @(x) isa(x, 'ConfigurationFile'));
+    parser.addParameter('settings', '', @(x) isa(x, 'ConfigurationFile'));
     parser.addParameter('stageController', '', @(x) isa(x, 'ESP300_Control'));
     parser.addOptional('laserScanController', '');
     parser.addOptional('lockInAmpController', '');
@@ -91,7 +91,7 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   end
   
   % Set the window position
-  movegui(hObject, handles.preferences.WindowPositions.controls);
+  movegui(hObject, handles.preferences.current.WindowPositions.controls);
   movegui(hObject, 'onscreen');
   
   % Initialize the camera view
@@ -101,25 +101,25 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.currentCameraFeed = '';
   
   % Set some parameters
-  handles.stageRanges = [handles.settings.SampleBoundaries.x ...
-                         handles.settings.SampleBoundaries.y ...
-                         handles.settings.SampleBoundaries.z];
+  handles.stageRanges = [handles.settings.current.SampleBoundaries.x,...
+                         handles.settings.current.SampleBoundaries.y,...
+                         handles.settings.current.SampleBoundaries.z];
   set(handles.XEdit, 'String', '0');
   set(handles.YEdit, 'String', '0');
   set(handles.ZEdit, 'String', '0');
   
   % Show only controls for available stages
-  if handles.stageController.IsValidAxis(handles.settings.StageController.xAxisID)
+  if handles.stageController.IsValidAxis(handles.settings.current.StageController.xAxisID)
     xState = 'on';
   else
     xState = 'off';
   end
-  if handles.stageController.IsValidAxis(handles.settings.StageController.yAxisID)
+  if handles.stageController.IsValidAxis(handles.settings.current.StageController.yAxisID)
     yState = 'on';
   else
     yState = 'off';
   end
-  if handles.stageController.IsValidAxis(handles.settings.StageController.zAxisID)
+  if handles.stageController.IsValidAxis(handles.settings.current.StageController.zAxisID)
     zState = 'on';
   else
     zState = 'off';
@@ -167,15 +167,9 @@ function ControlsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,
 % handles    structure with handles and user data (see GUIDATA)
   % Check to see if the user moved the window at all
   currentPosition = getpixelposition(hObject);
-  if currentPosition(1:2) ~= handles.preferences.WindowPositions.controls
-    handles.preferences.WindowPositions.controls = currentPosition(1:2);
-
-    % Update handles structure
-    guidata(hObject, handles);
+  if currentPosition(1:2) ~= handles.preferences.current.WindowPositions.controls
+    handles.preferences.current.WindowPositions.controls = currentPosition(1:2);
   end
-  
-  % Update any settings or preferences
-  Main('UpdateIniFiles', handles.mainWindow, handles.settings, handles.preferences);
   
   % Allow the add-on window to close its elements properly
   addOnHandle = str2func(handles.addOn.Tag);
@@ -466,11 +460,11 @@ end
 function [stagePosition, x, y, z] = DetermineStagePosition(handles)
 % Attempts to determine the current stage position from the absolute
 % coordinates of the stages
-  coordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.StageController.xAxisID,...
-                                                                handles.settings.StageController.yAxisID,...
-                                                                handles.settings.StageController.zAxisID]);
-  locations = handles.settings.PositionLocations;
-  boundaries = handles.settings.SampleBoundaries;
+  coordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.current.StageController.xAxisID,...
+                                                                handles.settings.current.StageController.yAxisID,...
+                                                                handles.settings.current.StageController.zAxisID]);
+  locations = handles.settings.current.PositionLocations;
+  boundaries = handles.settings.current.SampleBoundaries;
   fields = fieldnames(locations);
   position = -1;
   stagePosition = '';
@@ -640,12 +634,12 @@ function handles = MoveStageToCamera(handles)  %#ok<DEFNU>
              str2double(get(handles.YEdit, 'String')) ...
              str2double(get(handles.ZEdit, 'String'))];
   % Get the new origin and calculate the new position
-  cameraOrigin = GetOrigin(handles.CameraPosition, handles.settings.PositionLocations);
+  cameraOrigin = GetOrigin(handles.CameraPosition, handles.settings.current.PositionLocations);
   new = current + cameraOrigin;
   % Move the axis, showing a progress bar
-  handles.stageController.MoveAxis(handles.settings.StageController.xAxisID, new(1), true);
-  handles.stageController.MoveAxis(handles.settings.StageController.yAxisID, new(2), true);
-  handles.stageController.MoveAxis(handles.settings.StageController.zAxisID, new(3), true);
+  handles.stageController.MoveAxis(handles.settings.current.StageController.xAxisID, new(1), true);
+  handles.stageController.MoveAxis(handles.settings.current.StageController.yAxisID, new(2), true);
+  handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, new(3), true);
 
   % The stage should now be in the camera's field-of-view
   handles.StagePosition = handles.CameraPosition;
@@ -656,25 +650,25 @@ function MoveStageToSliderPosition(axis, slider, handles)
 % Moves the provided axis to the position specified by the slider control
   switch handles.CameraPosition
     case 'SampleLoading';
-      origin = handles.settings.PositionLocations.load(axis);
+      origin = handles.settings.current.PositionLocations.load(axis);
       
     case 'WideImage';
-      origin = handles.settings.PositionLocations.wide(axis);
+      origin = handles.settings.current.PositionLocations.wide(axis);
 
     case 'ScanningObjective';
-      origin = handles.settings.PositionLocations.scan(axis);
+      origin = handles.settings.current.PositionLocations.scan(axis);
   end
   
   relativePosition = ConvertSlider2Position(slider, handles.stageRanges(axis));
   switch axis
     case 1
-      relativeAxis = handles.settings.StageController.xAxisID;
+      relativeAxis = handles.settings.current.StageController.xAxisID;
       
     case 2
-      relativeAxis = handles.settings.StageController.yAxisID;
+      relativeAxis = handles.settings.current.StageController.yAxisID;
       
     case 3
-      relativeAxis = handles.settings.StageController.zAxisID;
+      relativeAxis = handles.settings.current.StageController.zAxisID;
   end
   absolutePosition = origin + relativePosition;
   handles.stageController.MoveAxis(relativeAxis, absolutePosition);

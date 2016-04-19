@@ -59,16 +59,13 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.settingsFile = 'Resources/Settings.ini';
   handles.preferencesFile = 'Resources/Preferences.ini';
   
-  % Get the settings
-  handles.settings = ini2struct(handles.settingsFile);
-  handles.old.Settings = handles.settings;
-  
-  % Get user preferences
-  handles.preferences = ini2struct(handles.preferencesFile);
-  handles.old.Preferences = handles.preferences;
+  % Get the settings and user preferences
+  configManager = ConfigurationFileManager.GetInstance();
+  handles.settings = configManager.GetConfigurationFile(handles.settingsFile);
+  handles.preferences = configManager.GetConfigurationFile(handles.preferencesFile);
   
   % Set the window position
-  movegui(hObject, handles.preferences.WindowPositions.main);
+  movegui(hObject, handles.preferences.current.WindowPositions.main);
   movegui(hObject, 'onscreen');
   
   % Get the GUI add-ons
@@ -79,12 +76,12 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   % with a handle to the controlling class
   %   TODO: Figure out how to get the LEDOff and LEDOn elements to not
   %   receive keyboard focus when tabbing to select
-  handles.LEDOn = ImageToggle(handles.LEDOn, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
-  handles.LEDOff = ImageToggle(handles.LEDOff, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
+  handles.LEDOn = ImageToggle(handles.LEDOn, handles.settings.current.LEDImages.greenOn, handles.settings.current.LEDImages.greenOff);
+  handles.LEDOff = ImageToggle(handles.LEDOff, handles.settings.current.LEDImages.redOn, handles.settings.current.LEDImages.redOff);
 
   % Set initial states
   handles = CascadeActionPower(handles, false);
-  imshow(handles.settings.TCMLogo);
+  imshow(handles.settings.current.TCMLogo);
 
   % Update handles structure
   guidata(hObject, handles);
@@ -115,15 +112,9 @@ function MainWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFN
   
   % Check to see if the user moved the window at all
   currentPosition = getpixelposition(hObject);
-  if currentPosition(1:2) ~= handles.preferences.WindowPositions.main
-    handles.preferences.WindowPositions.main = currentPosition(1:2);
-
-    % Update handles structure
-    guidata(hObject, handles);
+  if currentPosition(1:2) ~= handles.preferences.current.WindowPositions.main
+    handles.preferences.current.WindowPositions.main = currentPosition(1:2);
   end
-  
-  % Update the settings and preferences
-  UpdateIniFiles(hObject, handles.settings, handles.preferences)
 
 % Hint: delete(hObject) closes the figure
   delete(hObject);
@@ -258,41 +249,41 @@ function handles = ConnectHardware(handles)
 % Connect to the hardware. Anything added here MUST have a corresponding
 % disconnect statement in DisconnectHardware()
   % Set up the cameras and Matrox device
-  handles.cameras.load = videoinput('matrox', handles.settings.ImageAcquisition.loadDigitizer);
-  handles.cameras.wide = videoinput('matrox', handles.settings.ImageAcquisition.wideDigitizer);
-  handles.cameras.scan = videoinput('matrox', handles.settings.ImageAcquisition.scanDigitizer);
-  handles.cameras.load.SelectedSource = handles.settings.ImageAcquisition.loadChannel;
-  handles.cameras.wide.SelectedSource = handles.settings.ImageAcquisition.wideChannel;
-  handles.cameras.scan.SelectedSource = handles.settings.ImageAcquisition.scanChannel;
+  handles.cameras.load = videoinput('matrox', handles.settings.current.ImageAcquisition.loadDigitizer);
+  handles.cameras.wide = videoinput('matrox', handles.settings.current.ImageAcquisition.wideDigitizer);
+  handles.cameras.scan = videoinput('matrox', handles.settings.current.ImageAcquisition.scanDigitizer);
+  handles.cameras.load.SelectedSource = handles.settings.current.ImageAcquisition.loadChannel;
+  handles.cameras.wide.SelectedSource = handles.settings.current.ImageAcquisition.wideChannel;
+  handles.cameras.scan.SelectedSource = handles.settings.current.ImageAcquisition.scanChannel;
 
   % Connect to GPIB devices
   handles.laserScanController =...
-    ESP300_Control(handles.settings.LaserController.address,...
+    ESP300_Control(handles.settings.current.LaserController.address,...
                    false,...
                    'Laser Controller');
   handles.lockInAmpController =...
-    SR830_Control(handles.settings.LockInAmp.address,...
+    SR830_Control(handles.settings.current.LockInAmp.address,...
                   'Lock-in Amplifier');
-  handles.lockInAmpController.SetSensitivityConstantValue(handles.settings.LockInAmp.sensitivityConstant);
+  handles.lockInAmpController.SetSensitivityConstantValue(handles.settings.current.LockInAmp.sensitivityConstant);
   handles.probeLaserController =...
     ProbeLaser_Control(handles.lockInAmpController,...
-                       handles.settings.LockInAmp.probePowerChannel);
+                       handles.settings.current.LockInAmp.probePowerChannel);
   handles.pumpLaserController =...
-    DS345_Control(handles.settings.FunctionGenerator.address,...
+    DS345_Control(handles.settings.current.FunctionGenerator.address,...
                   'Function Generator');
   handles.stageController =...
-    ESP300_Control(handles.settings.StageController.address,...
+    ESP300_Control(handles.settings.current.StageController.address,...
                    true,...
                    'Stage Controller');
 
   % Set the maximum travel ranges of the sample stages
-  handles.stageController.SetLimits([handles.settings.StageController.xAxisID handles.settings.SoftStageBoundaries.x],...
-                                    [handles.settings.StageController.yAxisID handles.settings.SoftStageBoundaries.y],...
-                                    [handles.settings.StageController.zAxisID handles.settings.SoftStageBoundaries.z]);
+  handles.stageController.SetLimits([handles.settings.current.StageController.xAxisID, handles.settings.current.SoftStageBoundaries.x],...
+                                    [handles.settings.current.StageController.yAxisID, handles.settings.current.SoftStageBoundaries.y],...
+                                    [handles.settings.current.StageController.zAxisID, handles.settings.current.SoftStageBoundaries.z]);
   % Move the Z axis to a its lowest software boundary - the Z axis needs an
   % exception since the home seek does not move it to the middle of the
   % travel range, but to the absolute lowest point.
-  handles.stageController.MoveAxis(handles.settings.StageController.zAxisID, 4, true);
+  handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, 4, true);
 end
 
 function handles = DisconnectHardware(handles)
@@ -327,26 +318,4 @@ function isOpen = SwitchIfOpen(handles, addOn)
       end
     end
   end
-end
-
-function UpdateIniFiles(hObject, settings, preferences)
-% Update the settings and preferences as needed
-  handles = guidata(hObject);
-  
-  % Check to see if the settings have been modified
-  if ~isequal(settings, handles.old.Settings);
-    struct2ini(handles.settingsFile, settings);
-    fprintf('Modified settings detected. Changes have been saved to ''%s''\n', handles.settingsFile);
-  end
-  
-  % Check to see if the preferences have been modified
-  if ~isequal(preferences, handles.old.Preferences);
-    struct2ini(handles.preferencesFile, preferences);
-    fprintf('Modified preferences detected. Changes have been saved to ''%s''\n', handles.preferencesFile);
-  end
-  
-  % Update the local instance
-  handles.settings = settings;
-  handles.preferences = preferences;
-  guidata(hObject, handles);
 end

@@ -80,7 +80,7 @@ function Run_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.stageController = parser.Results.stageController;
   
   % Set the window position
-  setpixelposition(hObject, handles.preferences.WindowPositions.run);
+  setpixelposition(hObject, handles.preferences.current.WindowPositions.run);
   movegui(hObject, 'onscreen');
   
   % Create the progress bar
@@ -121,14 +121,8 @@ function RunWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<DEFNU>
 % handles    structure with handles and user data (see GUIDATA)
   if isfield(handles, 'preferences')
     currentPosition = getpixelposition(hObject);
-    if ~isequal(currentPosition, handles.preferences.WindowPositions.run)
-      handles.preferences.WindowPositions.run = currentPosition;
-
-      % Update handles structure
-      guidata(hObject, handles);
-  
-      % Update any settings or preferences
-      Main('UpdateIniFiles', handles.mainWindow, handles.settings, handles.preferences);
+    if ~isequal(currentPosition, handles.preferences.current.WindowPositions.run)
+      handles.preferences.current.WindowPositions.run = currentPosition;
     end
   end
   
@@ -136,7 +130,6 @@ function RunWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<DEFNU>
 end
 
 
-% --- Executes when RunWindow is resized.
 function RunWindow_SizeChangedFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to RunWindow (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -167,14 +160,14 @@ end
 function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
 % Centers the pump laser to the probe laser
   % Calculate the positions
-  scanAxes = [handles.settings.LaserController.xAxisID, handles.settings.LaserController.yAxisID];
-  steps = handles.settings.CenterScan.steps;
+  scanAxes = [handles.settings.current.LaserController.xAxisID, handles.settings.current.LaserController.yAxisID];
+  steps = handles.settings.current.CenterScan.steps;
   if steps <= 7
     steps = 7;
   end
-  stepSize = handles.settings.CenterScan.scanDistance / (steps - 1);
+  stepSize = handles.settings.current.CenterScan.scanDistance / (steps - 1);
   fineStepSize = stepSize / 25;
-  halfPosition = handles.settings.CenterScan.scanDistance / 2;
+  halfPosition = handles.settings.current.CenterScan.scanDistance / 2;
   currentPosition = handles.laserScanController.GetAbsoluteCoordinates(scanAxes);
   positions = [(currentPosition(1) - halfPosition):stepSize:(currentPosition(1) + halfPosition);...
                (currentPosition(2) - halfPosition):stepSize:(currentPosition(2) + halfPosition)];
@@ -182,8 +175,8 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
                    (currentPosition(2) - halfPosition):fineStepSize:(currentPosition(2) + halfPosition)];
   
   % Set the controller settings
-  handles.pumpLaserController.SetFrequency(handles.settings.CenterScan.frequency);
-  timeConstant = handles.settings.CenterScan.lockInAmpTimeConstant;
+  handles.pumpLaserController.SetFrequency(handles.settings.current.CenterScan.frequency);
+  timeConstant = handles.settings.current.CenterScan.lockInAmpTimeConstant;
   handles.lockInAmpController.SetTimeConstantValue(timeConstant);
   handles.lockInAmpController.Chill();
   
@@ -196,7 +189,7 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
   % Set up the window and prepare the plots
   uiwaitbar(handles.ProgressBar, 0);
   set(handles.ProgressText, 'String', '');
-  centerColormap = GetColormap(handles.settings.PlotSettings.centerColormap, 2);
+  centerColormap = GetColormap(handles.settings.current.PlotSettings.centerColormap, 2);
   cla(handles.AmplitudePlot);
   cla(handles.PhasePlot);
   handles.AmplitudePlot.XLim = [(min(positions(:)) - stepSize), (max(positions(:)) + stepSize)];
@@ -219,9 +212,9 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
 
     % Set up the plots for the next scan
     if a == 1
-      marker = handles.settings.PlotSettings.centerXSymbol;
+      marker = handles.settings.current.PlotSettings.centerXSymbol;
     else
-      marker = handles.settings.PlotSettings.centerYSymbol;
+      marker = handles.settings.current.PlotSettings.centerYSymbol;
     end
     amplitudeLine(a) = plot(handles.AmplitudePlot, positions(a,:), amplitude(a,:), 'Color', centerColormap(a,:), 'LineStyle', 'none', 'Marker', marker);
     phaseLine(a) = plot(handles.PhasePlot, positions(a,:), phase(a,:), 'Color', centerColormap(a,:), 'LineStyle', 'none', 'Marker', marker);
@@ -278,7 +271,7 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
     evaluatedFit = gaussian(finePositions(a,:), mu, sigma, scale) + min(amplitude(a,:));
     [~, maxPositionIndex] = max(evaluatedFit);
     maxPosition = finePositions(a,maxPositionIndex);
-    plot(handles.AmplitudePlot, finePositions(a,:), evaluatedFit, 'LineStyle', handles.settings.PlotSettings.fitLineStyle, 'Color', centerColormap(a,:));
+    plot(handles.AmplitudePlot, finePositions(a,:), evaluatedFit, 'LineStyle', handles.settings.current.PlotSettings.fitLineStyle, 'Color', centerColormap(a,:));
     plot(handles.AmplitudePlot, [maxPosition, maxPosition], get(handles.AmplitudePlot, 'YLim'), 'Color', centerColormap(a,:));
 
     % Move the stage to the ideal position
@@ -329,35 +322,35 @@ function [data, success] = Data(handles) %#ok<DEFNU>
   data = '';
   
   % Calculate the positions
-  xAxisID = handles.settings.LaserController.xAxisID;
-  steps = handles.settings.DataScan.steps;
+  xAxisID = handles.settings.current.LaserController.xAxisID;
+  steps = handles.settings.current.DataScan.steps;
   if steps <=1
     steps = 2;
   end
-  stepSize = handles.settings.DataScan.scanDistance / (steps - 1);
-  halfPosition = handles.settings.DataScan.scanDistance / 2;
+  stepSize = handles.settings.current.DataScan.scanDistance / (steps - 1);
+  halfPosition = handles.settings.current.DataScan.scanDistance / 2;
   currentPosition = handles.laserScanController.GetAbsoluteCoordinates(xAxisID);
   positions = (currentPosition - halfPosition):stepSize:(currentPosition + halfPosition);
   
   % Create the data structures
-  frequencies = handles.settings.DataScan.frequencies;
+  frequencies = handles.settings.current.DataScan.frequencies;
   numberOfFrequencies = length(frequencies);
   amplitude = NaN(numberOfFrequencies, steps);
-  amplitudeLine = NaN(numberOfFrequencies, 1);
+  amplitudePoints = NaN(numberOfFrequencies, 1);
   phase = NaN(numberOfFrequencies, steps);
-  phaseLine = NaN(numberOfFrequencies, 1);
+  phasePoints = NaN(numberOfFrequencies, 1);
   redoTest = true;
 
   % Set up the window and prepare the plots
   uiwaitbar(handles.ProgressBar, 0);
   set(handles.ProgressText, 'String', '');
-  centerColormap = GetColormap(handles.settings.PlotSettings.centerColormap, numberOfFrequencies);
+  dataColormap = GetColormap(handles.settings.current.PlotSettings.dataColormap, numberOfFrequencies);
   cla(handles.AmplitudePlot);
   cla(handles.PhasePlot);
   hold(handles.AmplitudePlot, 'on');
   hold(handles.PhasePlot, 'on');
-  colormap(handles.AmplitudePlot, centerColormap);
-  colormap(handles.PhasePlot, centerColormap);
+  colormap(handles.AmplitudePlot, dataColormap);
+  colormap(handles.PhasePlot, dataColormap);
   legendItems = cell(1, numberOfFrequencies);
   
   % Peform the scan
@@ -375,24 +368,24 @@ function [data, success] = Data(handles) %#ok<DEFNU>
     handles.laserScanController.MinimizeHysteresis(xAxisID, positions(1:2));
     
     % Check for performing a test run
-    if handles.preferences.CollectData.testRun == 1 && redoTest
+    if handles.preferences.current.CollectData.testRun == 1 && redoTest
       % Set up for a test of the current location
-      frequency = handles.settings.DataScan.testFrequency;
-      timeConstant = handles.settings.DataScan.testLockInAmpTimeConstant;
-      baseProgressString = sprintf('Data Scan Test... Frequency: %g kHz', handles.settings.DataScan.testFrequency / 1000);
+      frequency = handles.settings.current.DataScan.testFrequency;
+      timeConstant = handles.settings.current.DataScan.testLockInAmpTimeConstant;
+      baseProgressString = sprintf('Data Scan Test... Frequency: %g kHz', handles.settings.current.DataScan.testFrequency / 1000);
       legendItems{1} = sprintf('Test Run @ %g kHz', frequency / 1000);
     else
       % Set up for a full scan
       frequency = frequencies(f);
-      timeConstant = handles.settings.DataScan.lockInAmpTimeConstant;
+      timeConstant = handles.settings.current.DataScan.lockInAmpTimeConstant;
       baseProgressString = sprintf('Data Scan... Frequency: %g kHz (%i of %i)', frequencies(f) / 1000, f, numberOfFrequencies);
       legendItems{f} = sprintf('%g kHz', frequencies(f) / 1000);
     end
 
     % Set up the plots for the next scan
-    if isnan(amplitudeLine(f))
-      amplitudeLine(f) = plot(handles.AmplitudePlot, positions, amplitude(f,:), 'LineStyle', 'none', 'Marker', handles.settings.PlotSettings.amplitudeMarker);
-      phaseLine(f) = plot(handles.PhasePlot, positions, phase(f,:), 'LineStyle', 'none', 'Marker', handles.settings.PlotSettings.phaseMarker);
+    if isnan(amplitudePoints(f))
+      amplitudePoints(f) = plot(handles.AmplitudePlot, positions, amplitude(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.amplitudeMarker);
+      phasePoints(f) = plot(handles.PhasePlot, positions, phase(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.phaseMarker);
       handles.AmplitudePlot.XLim = [(positions(1) - stepSize), (positions(end) + stepSize)];
       handles.PhasePlot.XLim = [(positions(1) - stepSize), (positions(end) + stepSize)];
     end
@@ -424,18 +417,18 @@ function [data, success] = Data(handles) %#ok<DEFNU>
       phase(f,i) = handles.lockInAmpController.GetPhase();
 
       % Update the plots
-      set(amplitudeLine(f), 'YData', amplitude(f,:));
-      set(phaseLine(f), 'YData', phase(f,:));
+      set(amplitudePoints(f), 'YData', amplitude(f,:));
+      set(phasePoints(f), 'YData', phase(f,:));
 
       % Update the progress bar
-      if handles.preferences.CollectData.testRun == 1 && redoTest
+      if handles.preferences.current.CollectData.testRun == 1 && redoTest
         uiwaitbar(handles.ProgressBar, i / steps);
       else
         uiwaitbar(handles.ProgressBar, (i + ((f - 1) * steps)) / (numberOfFrequencies * steps));
       end
     end
     
-    if handles.preferences.CollectData.testRun == 1 && redoTest && success == true
+    if handles.preferences.current.CollectData.testRun == 1 && redoTest && success == true
       userResponse = questdlg('Do the test measurements look good?', 'Good location?', 'Yes', 'No', 'Abort', 'Yes');
       switch userResponse
         case 'Yes'
@@ -443,9 +436,9 @@ function [data, success] = Data(handles) %#ok<DEFNU>
           redoTest = false;
           % Reset the plots
           amplitude(1,:) = NaN(1, steps);
-          set(amplitudeLine(1), 'YData', amplitude(1,:));
+          set(amplitudePoints(1), 'YData', amplitude(1,:));
           phase(1,:) = NaN(1, steps);
-          set(phaseLine(1), 'YData', phase(1,:));
+          set(phasePoints(1), 'YData', phase(1,:));
           
         case 'No'
           uiwait(msgbox('I will perform another test at the same location.'));
@@ -482,22 +475,22 @@ end
 function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
 % Moves the Z stage to focus the lasers
   % Calculate the positions
-  zAxisID = handles.settings.StageController.zAxisID;
-  steps = handles.settings.FocusScan.steps;
+  zAxisID = handles.settings.current.StageController.zAxisID;
+  steps = handles.settings.current.FocusScan.steps;
   if steps <= 7
     steps = 7;
   end
-  stepSize = handles.settings.FocusScan.scanDistance / (steps - 1);
-  halfPosition = handles.settings.FocusScan.scanDistance / 2;
+  stepSize = handles.settings.current.FocusScan.scanDistance / (steps - 1);
+  halfPosition = handles.settings.current.FocusScan.scanDistance / 2;
   currentPosition = handles.stageController.GetAbsoluteCoordinates(zAxisID);
-  ZOriginPosition = handles.settings.PositionLocations.scan(3);
+  ZOriginPosition = handles.settings.current.PositionLocations.scan(3);
   relativeZPosition = currentPosition - ZOriginPosition;
   positions = (currentPosition - halfPosition):stepSize:(currentPosition + halfPosition);
   relativePositions = (relativeZPosition - halfPosition):stepSize:(relativeZPosition + halfPosition);
   
   % Set the controller settings
-  handles.pumpLaserController.SetFrequency(handles.settings.FocusScan.frequency);
-  timeConstant = handles.settings.FocusScan.lockInAmpTimeConstant;
+  handles.pumpLaserController.SetFrequency(handles.settings.current.FocusScan.frequency);
+  timeConstant = handles.settings.current.FocusScan.lockInAmpTimeConstant;
   handles.lockInAmpController.SetTimeConstantValue(timeConstant);
   handles.lockInAmpController.Chill();
   
@@ -514,8 +507,8 @@ function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
   handles.PhasePlot.XLim = [(relativePositions(1) - stepSize), (relativePositions(end) + stepSize)];
   hold(handles.AmplitudePlot, 'on');
   hold(handles.PhasePlot, 'on');
-  amplitudeLine = plot(handles.AmplitudePlot, relativePositions, amplitude, 'LineStyle', 'none', 'Marker', handles.settings.PlotSettings.amplitudeMarker);
-  phaseLine = plot(handles.PhasePlot, relativePositions, phase, 'LineStyle', 'none', 'Marker', handles.settings.PlotSettings.phaseMarker);
+  amplitudeLine = plot(handles.AmplitudePlot, relativePositions, amplitude, 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.amplitudeMarker);
+  phaseLine = plot(handles.PhasePlot, relativePositions, phase, 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.phaseMarker);
   legendItems = {'Data', 'Fit', 'Best'};
   legend(handles.AmplitudePlot, legendItems{1}, 'Location', 'South');
   legend(handles.PhasePlot, legendItems{1}, 'Location', 'South');
@@ -575,7 +568,7 @@ function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
     end
 
     % Plot the fit
-    plot(handles.AmplitudePlot, fineRelativePositions, evaluatedFit, 'LineStyle', handles.settings.PlotSettings.fitLineStyle);
+    plot(handles.AmplitudePlot, fineRelativePositions, evaluatedFit, 'LineStyle', handles.settings.current.PlotSettings.fitLineStyle);
     plot(handles.AmplitudePlot, [relativeFocusPosition, relativeFocusPosition], get(handles.AmplitudePlot, 'YLim'));
     legend(handles.AmplitudePlot, legendItems, 'Location', 'South');
     

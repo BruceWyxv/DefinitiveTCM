@@ -145,8 +145,8 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
           save(savePath, '-struct', 'data');
 
           % Update the preferences
-          handles.preferences.CollectData.savePath = savePath;
-          handles.preferences.CollectData.sampleInfo = sampleInfo;
+          handles.preferences.current.CollectData.savePath = savePath;
+          handles.preferences.current.CollectData.sampleInfo = sampleInfo;
           guidata(hObject,handles);
         end
       end
@@ -310,8 +310,8 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   handles.tooltips.sampleNameEdit = get(handles.SampleNameEdit, 'TooltipString');
   
   % Sets the values of the save path and sample name
-  if ~isempty(handles.preferences.CollectData.savePath)
-    [handles.saveFolder, handles.sampleName, ~] = fileparts(handles.preferences.CollectData.savePath);
+  if ~isempty(handles.preferences.current.CollectData.savePath)
+    [handles.saveFolder, handles.sampleName, ~] = fileparts(handles.preferences.current.CollectData.savePath);
   else
     handles.saveFolder = system_dependent('getuserworkfolder');
     handles.sampleName = 'Sample1';
@@ -322,7 +322,7 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   
   % Load the previously recorded sample info
   if ~isfield(handles, 'sampleInfo')
-    handles.sampleInfo = SampleInfoLinear2Array(handles.preferences.CollectData.sampleInfo);
+    handles.sampleInfo = SampleInfoLinear2Array(handles.preferences.current.CollectData.sampleInfo);
   end
   
   % Get the laser states
@@ -336,10 +336,10 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   handles.pumpLaserPower = handles.pumpLaserController.isOn;
   
   % Create the LED controls
-  handles.ProbeLaserOffLED = ImageToggle(handles.ProbeLaserOffLED, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
-  handles.ProbeLaserOnLED = ImageToggle(handles.ProbeLaserOnLED, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
-  handles.PumpLaserOffLED = ImageToggle(handles.PumpLaserOffLED, handles.settings.LEDImages.redOn, handles.settings.LEDImages.redOff);
-  handles.PumpLaserOnLED = ImageToggle(handles.PumpLaserOnLED, handles.settings.LEDImages.greenOn, handles.settings.LEDImages.greenOff);
+  handles.ProbeLaserOffLED = ImageToggle(handles.ProbeLaserOffLED, handles.settings.current.LEDImages.redOn, handles.settings.current.LEDImages.redOff);
+  handles.ProbeLaserOnLED = ImageToggle(handles.ProbeLaserOnLED, handles.settings.current.LEDImages.greenOn, handles.settings.current.LEDImages.greenOff);
+  handles.PumpLaserOffLED = ImageToggle(handles.PumpLaserOffLED, handles.settings.current.LEDImages.redOn, handles.settings.current.LEDImages.redOff);
+  handles.PumpLaserOnLED = ImageToggle(handles.PumpLaserOnLED, handles.settings.current.LEDImages.greenOn, handles.settings.current.LEDImages.greenOff);
   ToggleProbeLaser(handles, handles.probeLaserPower);
   TogglePumpLaser(handles, handles.pumpLaserPower);
   

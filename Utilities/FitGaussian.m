@@ -14,9 +14,3 @@ function [mu, sigma, scale, chiSquared] = FitGaussian(x, y)
   mu = parameters(1);
   sigma = parameters(2);
 end
-
-function value = CalculateChiSquared(data, fit)
-% Returns the chi squared value of a data set and the fit
-  value = sum((data - fit).^2);
-end
-

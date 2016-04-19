@@ -110,7 +110,7 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
 % Initializes the states of any child controls, called by the main
 % ControlsGUI
   % Set the stage <-> camera link checkbox from the stored preference value
-  set(handles.LinkStageToCameraCheckbox, 'Value', handles.preferences.PositionSample.linkStageToCamera);
+  set(handles.LinkStageToCameraCheckbox, 'Value', handles.preferences.current.PositionSample.linkStageToCamera);
 
   % Default the camera position to the Sample Loading position
   handles.CameraPosition = 'SampleLoading';
@@ -197,5 +197,5 @@ function handles = UpdateLinkCheckbox(handles)
   end
   
   % Update the preferences
-  handles.preferences.PositionSample.linkStageToCamera = value;
+  handles.preferences.current.PositionSample.linkStageToCamera = value;
 end
