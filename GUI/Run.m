@@ -337,7 +337,7 @@ function [data, success] = Data(handles) %#ok<DEFNU>
   numberOfFrequencies = length(frequencies);
   amplitude = NaN(numberOfFrequencies, steps);
   amplitudePoints = NaN(numberOfFrequencies, 1);
-  phase = NaN(numberOfFrequencies, steps);
+  phases = NaN(numberOfFrequencies, steps);
   phasePoints = NaN(numberOfFrequencies, 1);
   redoTest = true;
 
@@ -385,7 +385,7 @@ function [data, success] = Data(handles) %#ok<DEFNU>
     % Set up the plots for the next scan
     if isnan(amplitudePoints(f))
       amplitudePoints(f) = plot(handles.AmplitudePlot, positions, amplitude(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.amplitudeMarker);
-      phasePoints(f) = plot(handles.PhasePlot, positions, phase(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.phaseMarker);
+      phasePoints(f) = plot(handles.PhasePlot, positions, phases(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.phaseMarker);
       handles.AmplitudePlot.XLim = [(positions(1) - stepSize), (positions(end) + stepSize)];
       handles.PhasePlot.XLim = [(positions(1) - stepSize), (positions(end) + stepSize)];
     end
@@ -414,11 +414,11 @@ function [data, success] = Data(handles) %#ok<DEFNU>
 
       % Read the data
       amplitude(f,i) = handles.lockInAmpController.GetAmplitude();
-      phase(f,i) = handles.lockInAmpController.GetPhase();
+      phases(f,i) = handles.lockInAmpController.GetPhase();
 
       % Update the plots
       set(amplitudePoints(f), 'YData', amplitude(f,:));
-      set(phasePoints(f), 'YData', phase(f,:));
+      set(phasePoints(f), 'YData', phases(f,:));
 
       % Update the progress bar
       if handles.preferences.current.CollectData.testRun == 1 && redoTest
@@ -437,8 +437,8 @@ function [data, success] = Data(handles) %#ok<DEFNU>
           % Reset the plots
           amplitude(1,:) = NaN(1, steps);
           set(amplitudePoints(1), 'YData', amplitude(1,:));
-          phase(1,:) = NaN(1, steps);
-          set(phasePoints(1), 'YData', phase(1,:));
+          phases(1,:) = NaN(1, steps);
+          set(phasePoints(1), 'YData', phases(1,:));
           
         case 'No'
           uiwait(msgbox('I will perform another test at the same location.'));
@@ -467,7 +467,7 @@ function [data, success] = Data(handles) %#ok<DEFNU>
     data.timeConstant = timeConstant;
     data.positions = positions;
     data.amplitudes = amplitude;
-    data.phase = phase;
+    data.phases = phases;
   end
 end
 
@@ -609,17 +609,4 @@ end
 function isCancelling = IsCancelling(handles)
 % Checks to see if the user has requested a cancel operation
  isCancelling = strcmp(get(handles.CancelButton, 'Enable'), 'off');
-end
-
-
-function colormap = GetColormap(mapName, steps)
-% Gets the color map corresponding the the string
-  try
-    % Interpret the colomap name as a function (see colormap)
-    colormapFunction = str2func(mapName);
-    colormap = colormapFunction(steps);
-  catch
-    % Default to the jet colormap if an error occurs
-    colormap = jet(steps);
-  end
 end

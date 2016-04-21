@@ -30,13 +30,20 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
 %                   Notes:
 %                       1) 'Fast' will cap the maximum frequency at 50 kHz
 %                       2) Only 'Full' will perform any anisotropic fits
+%               * FitAmplitude      (default = <value from settings>)
+%                   Boolean, sets whether the amplitude will also be used
+%                   when calculating the goodness of fit
 %               * Magnification     (default = <value in data>)
 %                   Magnification of the objective used when collecting
 %                   data
-%               * PreferencesFile   (default = 'Resources/Preferences.ini')
-%                   Path to preferences file
-%               * SettingsFile      (default = 'Resources/Settings.ini')
-%                   Path to settings file
+%               * Preferences       (default: load 'Resources/Preferences.ini')
+%                   Handle to preferences configuration class
+%               * Settings          (default: load 'Resources/Settings.ini')
+%                   Handle to settings configuration class
+%               **** Note: If the defaults are used for both Preferences
+%                    and Settings, then FitTCMData will assume that it has
+%                    been started in independent mode and will force a save
+%                    and close of these files when it has finished.
 %               * SubstrateName     (default = <data file name>)
 %
 % Outputs:      results
@@ -56,19 +63,21 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
 %
 % File:         FitThermalAnisotropy.m Author:       Brycen Wendt
 % (brycen.wendt@inl.gov; wendbryc@isu.edu) Date Created: 09/30/2015
-
+  startTimer = tic;
+  
   % Get the databases and utilities
   database = Database();
 
   % Define the input arguments
   parser = inputParser;
-  parser.addRequired('dataFilePath', @(x) ischar(x) && exists(x, 'file'));
+  parser.addRequired('dataFilePath', @(x) ischar(x) && exist(x, 'file'));
   parser.addRequired('filmName', @ischar);
   parser.addRequired('filmThickness', @isnumeric);
   parser.addParameter('analysisModel', 'Fast', @ischar);
+  parser.addParameter('fitAmplitude', false, @islogical);
   parser.addParameter('magnification', -1, @isnumeric);
-  parser.addParameter('preferencesFile', 'Resources/Preferences.ini', @(x) ischar(x) && exists(x, 'file'));
-  parser.addParameter('settingsFile', 'Resources/Settings.ini', @(x) ischar(x) && exists(x, 'file'));
+  parser.addParameter('preferences', '');
+  parser.addParameter('settings', '');
   parser.addParameter('substrateName', '', @ischar);
 
   % Check the input arguments
@@ -85,11 +94,28 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
 
   % Assign additional values
   analysisModel = parser.Results.analysisModel;
+  fitAmplitude = parser.Results.fitAmplitude;
   magnification = parser.Results.magnification;
   configManager = ConfigurationFileManager.GetInstance();
-  preferences = configManager.GetConfigurationFile(parser.Results.preferencesFile);
-  settings = configManager.GetConfigurationFile(parser.Results.settingsFile);
+  if isempty(parser.Results.preferences)
+    preferencesProvided = false;
+    preferences = configManager.GetConfigurationFile('Resources/Preferences.ini');
+  else
+    preferencesProvided = true;
+    preferences = parser.Results.preferences;
+  end
+  if isempty(parser.Results.settings)
+    settingsProvided = false;
+    settings = configManager.GetConfigurationFile('Resources/Settings.ini');
+  else
+    settingsProvided = true;
+    settings = parser.Results.settings;
+  end
   substrateName = parser.Results.substrateName;
+  
+  if ~isempty(strfind([parser.UsingDefaults{:}], 'fitAmplitude'))
+    fitAmplitude = settings.current.Analysis.fitAmplitude;
+  end
 
   % Ensure the file is valid
   [directory, fileName, ~] = fileparts(dataFilePath);
@@ -113,7 +139,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
     if magnification > 0
       data.magnification = magnification;
     else
-      data.magnification = preferences.Analysis.magnification;
+      data.magnification = preferences.current.Analysis.magnification;
     end
   end
 
@@ -136,23 +162,23 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   % Define the parameters. Not all will be required for each fitting
   % routine
   initialValues = zeros(1,8);
-  initialValues(Properties.SubstrateConductivity) = substrateProperties.k;
-  initialValues(Properties.SubstrateDiffusivity) = substrateProperties.d;
-  initialValues(Properties.FilmConductivity) = filmProperties.k;
-  initialValues(Properties.FilmDiffusivity) = filmProperties.d;
-  initialValues(Properties.KapitzaResistance) = preferences.Analysis.kapitzaResistance;
-  initialValues(Properties.SpotSize) = database.GetSpotSizeFromMagnification(data.magnification);
+  initialValues(FitProperties.SubstrateConductivity) = substrateProperties.k;
+  initialValues(FitProperties.SubstrateDiffusivity) = substrateProperties.d;
+  initialValues(FitProperties.FilmConductivity) = filmProperties.k;
+  initialValues(FitProperties.FilmDiffusivity) = filmProperties.d;
+  initialValues(FitProperties.KapitzaResistance) = preferences.current.Analysis.kapitzaResistance;
+  initialValues(FitProperties.SpotSize) = database.GetSpotSizeFromMagnification(data.magnification);
   fitMask = false(1,8);
-  fitMask(Properties.SpotSize) = true; % We always fit the spot size
+  fitMask(FitProperties.SpotSize) = true; % We always fit the spot size
   
   % Select the requested fit, and identify which seed values will be fit
   switch lower(analysisModel)
     case 'fast'
-      fitMask(Properties.SubstrateConductivity) = true;
-      fitMask(Properties.SubstrateDiffusivity) = true;
+      fitMask(FitProperties.SubstrateConductivity) = true;
+      fitMask(FitProperties.SubstrateDiffusivity) = true;
       % Cull the data
-      allowedFrequencies = data.frequencies < 50e3;
-      data.frequencies = data.frequencues(allowedFrequencies);
+      allowedFrequencies = data.frequencies <= 50e3;
+      data.frequencies = data.frequencies(allowedFrequencies);
       data.amplitudes = data.amplitudes(allowedFrequencies,:);
       data.phases = data.phases(allowedFrequencies,:);
       
@@ -160,23 +186,23 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
       if ~substrateFound
         error('The substrate material must be defined in the materials database in order to perform an analysis of the film material');
       end
-      fitMask(Properties.FilmConductivity) = true;
-      fitMask(Properties.FilmDiffusivity) = true;
-      fitMask(Properties.KapitzaResistance) = true;
+      fitMask(FitProperties.FilmConductivity) = true;
+      fitMask(FitProperties.FilmDiffusivity) = true;
+      fitMask(FitProperties.KapitzaResistance) = true;
       
     case 'full'
-      fitMask(Properties.SubstrateConductivity) = true;
-      fitMask(Properties.SubstrateDiffusivity) = true;
-      fitMask(Properties.KapitzaResistance) = true;
+      fitMask(FitProperties.SubstrateConductivity) = true;
+      fitMask(FitProperties.SubstrateDiffusivity) = true;
+      fitMask(FitProperties.KapitzaResistance) = true;
 
       % Are we running an anisotropic fit?
       if data.anisotropic
         % Enable the fit on the anisotropic parameters and set the initial
         % values
-        fitMask(Properties.SubstrateAnisoConductivity) = true;
-        fitMask(Properties.SubstrateAnisoDiffusivity) = true;
-        initialValues(Properties.SubstrateAnisoConductivity) = substrateProperties.k;
-        initialValues(Properties.SubstrateAnisoDiffusivity) = substrateProperties.d;
+        fitMask(FitProperties.SubstrateAnisoConductivity) = true;
+        fitMask(FitProperties.SubstrateAnisoDiffusivity) = true;
+        initialValues(FitProperties.SubstrateAnisoConductivity) = substrateProperties.k;
+        initialValues(FitProperties.SubstrateAnisoDiffusivity) = substrateProperties.d;
       end
       
     otherwise
@@ -184,12 +210,20 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   end
   
   % Set up and run the analysis
-  analysisPlotter = Analyze('MainWindow', gcf,...
-                            
-  analyzer = ThermaWaveNumbers(data,...
-                               fitMask,...
-                               preferences,...
-                               settings,...
-                               initialValues);
+  analyzer = ThermalWaveNumbers(data,...
+                                fitAmplitude,...
+                                fitMask,...
+                                preferences,...
+                                settings,...
+                                initialValues);
   results = analyzer.Run();
+  
+  % Clean up
+  if preferencesProvided == false && settingsProvided == false
+    configManager.delete();
+  end
+  
+  elapsedTime = toc(startTimer);
+  results
+  fprintf('It took %g seconds to analyze the data.\n\n', elapsedTime);
 end

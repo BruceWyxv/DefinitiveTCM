@@ -46,7 +46,6 @@ classdef ConfigurationFileManager < handle
       
       for i = 1:length(configurationFileSet)
         configurationFile = myself.configurationFiles(configurationFileSet{1});
-        myself.configurationFiles.remove(configurationFileSet{1});
         delete(configurationFile);
       end
     end

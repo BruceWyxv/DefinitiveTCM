@@ -18,6 +18,7 @@ classdef ThermalWaveNumbers < handle
   properties (SetAccess = immutable, GetAccess = public)
     amplitudeData; % Data amplitude
     fitMask; % Logical matrix identifying which seed parameters to fit, inverse mask (false = reject, true = accept)
+    fitAmplitude; % Logical identifying whether the amplitude should be used in the fit
     frequencies; % Data frequencies
     isAnisotropic; % Boolean representing the fit type
     phaseData; % Modified data prequencies, max at y = 0
@@ -40,6 +41,7 @@ classdef ThermalWaveNumbers < handle
   
   methods
     function myself = ThermalWaveNumbers(data,...
+                                         fitAmplitude,...
                                          fitMask,...
                                          preferences,...
                                          settings,...
@@ -54,6 +56,7 @@ classdef ThermalWaveNumbers < handle
       
       % Assign properties
       myself.fitMask = fitMask;
+      myself.fitAmplitude = fitAmplitude;
       myself.initialValues = initialValues;
       myself.numberOfFitParameters = sum(myself.fitMask);
       
@@ -61,12 +64,12 @@ classdef ThermalWaveNumbers < handle
       [myself.positions, myself.positionOffsets,...
        myself.phaseData, myself.phaseOffsets,...
        myself.amplitudeData,...
-       myself.weights] = ThermalWaveNumbers.Preformatting(data, myself.preferences);
+       myself.weights] = ThermalWaveNumbers.Preformatting(data, myself.settings);
       
       % Precalculate some values
       myself.absorbedPower = 1;
       myself.absorptionCoefficient = 5e9;
-      myself.omegas = 2 * pi * frequencies;
+      myself.omegas = 2 * pi * myself.frequencies;
       
       % Select the fit function
       myself.isAnisotropic = data.anisotropic;
@@ -86,7 +89,7 @@ classdef ThermalWaveNumbers < handle
       problem.objective = fitEvaluation;
       problem.x0 = startValues;
       problem.solver = 'fminsearch';
-      problem.options = optimset('OutputFcn', @myself.PlotSearch);
+      problem.options = optimset('OutputFcn', @myself.MinimizationPlot);
       [finalValues, finalGoodness, exitFlag, output] = fminsearch(problem);
       
       % Return the results
@@ -106,11 +109,21 @@ classdef ThermalWaveNumbers < handle
       analyticalSolution = myself + currentFitValues;
     end
     
+    function CloseAnalysisPlot(myself, goodness, stepInformation, success, showMessage)
+    % Closes the analysis plot window
+      AnalysisProgress('Finalize', guidata(myself.analysisPlot), myself, goodness, stepInformation, success, showMessage);
+      close(myself.analysisPlot);
+      delete(myself.analysisPlot);
+    end
+    
     function chiSquared = GoodnessOfFit(myself, analyticalSolution)
     % Determines how good the current fitted values are
       chiSquared = 0;
       for f = 1:myself.numberOfFrequencies
         localChiSquared = CalculateChiSquared(myself.phaseData(f,:), analyticalSolution.phases(f,:));
+        if myself.fitAmplitude == 1
+          localChiSquared = localChiSquared + CalculateChiSquared(myself.amplitudeData(f,:), analyticalSolution.amplitudes(f,:));
+        end
         chiSquared = chiSquared + localChiSquared * myself.weights(f);
       end
       
@@ -124,10 +137,12 @@ classdef ThermalWaveNumbers < handle
       % properties being fitted
       currentValues = myself.initialValues;
       currentValues(myself.fitMask) = currentFitValues;
+      alphaf = myself.absorptionCoefficient;
       ks = currentValues(FitProperties.SubstrateConductivity);
       Ds = currentValues(FitProperties.SubstrateDiffusivity);
       kf = currentValues(FitProperties.FilmConductivity);
       Df = currentValues(FitProperties.FilmDiffusivity);
+      df = Df;
       Re = currentValues(FitProperties.SpotSize);
       Rth = currentValues(FitProperties.KapitzaResistance);
       amplitudes = zeros(myself.numberOfFrequencies, myself.numberOfSteps);
@@ -143,46 +158,53 @@ classdef ThermalWaveNumbers < handle
         pmax = 10 / (2.0e-6);
         delp = pmax / 1000;
         p = 0:delp:pmax;
-        p2 = p.^2;
+%         p2 = p.^2;
         pZeros = zeros(1,length(p));
         
         % Parameters from writeup on 3-19-14
-        nf = sqrt(p2 + 1i * omega / Df);
-        ns = sqrt(p2 + 1i * omega / Ds);
-        ksns = ks * ns;
-        kfnf = kf * nf;
-        rsp1 = Rth * ksns + 1;
-        exp2NfDf = exp(-2 * nf * df);
-        denominator = (nf .* ((kfnf .* (exp2NfDf - 1) .* rsp1) - (exp2NfDf  + 1) .* ksns));
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        F = P0 * myself.absorptionCoefficient * exp(-p2 * Re^2 ...
-/ ...                                                     ----
-                                                           4) ...
-/ ...       --------------------------------------------------
-                   (2 * pi * kf);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        E =                        F ...
-./ ...      -------------------------------------------------
-            (myself.absorptionCoefficient^2 - p2 - 1i * omega ...
-/ ...                                                   -----
-                                                         Df);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        expDfAlphaNf = exp(-df * (myself.absorptionCoefficient + nf));
-        A = -E .* (myself.absorptionCoefficient * (kfnf .* (expDfAlphaNf + 1) .* rsp1 - ksns) - ks * expDfAlphaNf .* ksns) ...
-./ ...      -------------------------------------------------------------------------------------------------------------
-                                                      denominator;
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        expAlphaDf = exp(-myself.absorptionCoefficient * df);
-        expDfNf = exp(-nf * df);
-        B = -E * (myself.absorptionCoefficient * (kfnf .* (expAlphaDf - expDfNf) .* rsp1 + ksns .* expDfNf) - nf .* expAlphaDf .* ksns) .* expDfNf ...
-./ ...      --------------------------------------------------------------------------------------------------------------------------------
-                                                                  denominator;
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        int = p .* (A + B + E);
+        nf=sqrt(p.^2+1i*omega/Df);
+        ns=sqrt(p.^2+1i*omega/Ds);
+        F=P0*alphaf*exp(-p.^2*Re^2/4)/(2*pi*kf);
+        E=F./(alphaf^2-p.^2-1i*omega/Df);
+        A=-E.*(-alphaf.*kf.*nf-alphaf.*kf.*ns.*ks.*Rth.*nf-alphaf.*ns.*ks+alphaf.*kf.*exp(-alphaf.*df-nf.*df).*nf-exp(-alphaf.*df-nf.*df).*nf.*ns.*ks+exp(-alphaf.*df-nf.*df).*nf.*kf.*ns.*ks.*Rth.*alphaf)./nf./(-nf.*kf-nf.*kf.*ns.*ks.*Rth-ns.*ks+nf.*kf.*exp(-2.*nf.*df)+nf.*kf.*ns.*ks.*Rth.*exp(-2.*nf.*df)-ns.*ks.*exp(-2.*nf.*df));
+        B=-E.*(alphaf.*kf.*exp(-alphaf.*df).*nf-exp(-alphaf.*df).*nf.*ns.*ks+exp(-alphaf.*df).*nf.*kf.*ns.*ks.*Rth.*alphaf-nf.*kf.*exp(-nf.*df).*alphaf-alphaf.*kf.*ns.*ks.*Rth.*exp(-nf.*df).*nf+alphaf.*ns.*ks.*exp(-nf.*df)).*exp(-nf.*df)./nf./(-nf.*kf-nf.*kf.*ns.*ks.*Rth-ns.*ks+nf.*kf.*exp(-2.*nf.*df)+nf.*kf.*ns.*ks.*Rth.*exp(-2.*nf.*df)-ns.*ks.*exp(-2.*nf.*df));
+        int=p.*(A+B+E);
+%         nf = sqrt(p2 + 1i * omega / Df);
+%         ns = sqrt(p2 + 1i * omega / Ds);
+%         ksns = ks * ns;
+%         kfnf = kf * nf;
+%         rsp1 = Rth * ksns + 1;
+%         exp2NfDf = exp(-2 * nf * Df);
+%         denominator = (nf .* ((kfnf .* (exp2NfDf - 1) .* rsp1) - (exp2NfDf  + 1) .* ksns));
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         F = P0 * myself.absorptionCoefficient * exp(-p2 * Re^2 ...
+% / ...                                                     ----
+%                                                            4) ...
+% / ...       --------------------------------------------------
+%                    (2 * pi * kf);
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         E =                        F ...
+% ./ ...      -------------------------------------------------
+%             (myself.absorptionCoefficient^2 - p2 - 1i * omega ...
+% / ...                                                   -----
+%                                                          Df);
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         expDfAlphaNf = exp(-Df * (myself.absorptionCoefficient + nf));
+%         A = -E .* (myself.absorptionCoefficient * (kfnf .* (expDfAlphaNf + 1) .* rsp1 - ksns) - ks * expDfAlphaNf .* ksns) ...
+% ./ ...      -------------------------------------------------------------------------------------------------------------
+%                                                       denominator;
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         expAlphaDf = exp(-myself.absorptionCoefficient * Df);
+%         expDfNf = exp(-nf * Df);
+%         B = -E .* (myself.absorptionCoefficient * (kfnf .* (expAlphaDf - expDfNf) .* rsp1 + ksns .* expDfNf) - nf .* expAlphaDf .* ksns) .* expDfNf ...
+% ./ ...      --------------------------------------------------------------------------------------------------------------------------------
+%                                                                   denominator;
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         int = p .* (A + B + E);
   
         % Thermal wave solution
         absSteps = abs(steps);
-        integrand = besselj(0, p * absSteps) .* int;
+        integrand = bsxfun(@times, besselj(0, absSteps' * p), int);
         solution = -trapz(integrand, 2)' * delp;
         phases(f,:) = angle(solution);
 
@@ -194,10 +216,21 @@ classdef ThermalWaveNumbers < handle
 
           % Account for phase jumps of pi
           phaseOffset = round(abs(phaseAt0 - max(phases(f,:))) / pi);
-          phaseAt0 = phaseAt0 + pi * phaseOffset;
+          phaseAt0 = phaseAt0 + (pi * phaseOffset);
 
           phases(f,:) = phases(f,:) - phaseAt0;
         end
+        
+%         % Make a few behaviors look very bad to fminsearch
+%         middle = ceil(myself.numberOfSteps / 2);
+%         if ks > 0 && Ds > 0 && kf > 0 && Df > 0 && Re > 0 && Rth > 0
+%           if phases(f,1) > phases(f,middle)
+%             phases(f,:) = -phases(f,:);
+%           end
+%           phases(f,:) = phases(f,:) - phases(f,middle);
+%         else
+%           phases(f,:) = phases(f,:) * 180;
+%         end
 
         amplitudes(f,:) = abs(solution) / max(abs(solution));
       end
@@ -207,13 +240,13 @@ classdef ThermalWaveNumbers < handle
       
       % Increment the iteration counter
       myself.iterations = myself.iterations + 1;
-      analyticalSolution.positions = myself.Positions;
+      analyticalSolution.positions = myself.positions;
       analyticalSolution.amplitudes = amplitudes;
       analyticalSolution.phases = phases;
       myself.analyticalSolution = analyticalSolution;
     end
     
-    function halt = PlotSearch(myself, iterations, goodnessValues, state)
+    function halt = MinimizationPlot(myself, goodness, stepInformation, state)
     % Plots the progress of the minimization
       halt = false;
       
@@ -223,21 +256,27 @@ classdef ThermalWaveNumbers < handle
           data.amplitudes = myself.amplitudeData;
           data.phases = myself.phaseData;
           data.positions = myself.positions;
-          myself.analysisPlot = Analyze('Data', data,...
-                                        'Preferences', myself.preferences,...
-                                        'Settings', myself.settings);
+          myself.analysisPlot = AnalysisProgress('Data', data,...
+                                                 'Preferences', myself.preferences,...
+                                                 'Settings', myself.settings);
           
         case 'iter'
           % Update the plots
-          halt = myself.analysisPlot('Update', guidata(myself.analysisPlot), myself, iterations, goodnessValues);
+          halt = AnalysisProgress('Update', guidata(myself.analysisPlot), myself, goodness, stepInformation);
+          if halt
+            CloseAnalysisPlot(myself, goodness, stepInformation, false, false)
+          end
           
         case 'interrupt'
-          % Something bad happened, try to figure out what
-          halt = true;
+          % Update the plots
+          halt = AnalysisProgress('Update', guidata(myself.analysisPlot), myself, goodness, stepInformation);
+          if halt
+            CloseAnalysisPlot(myself, goodness, stepInformation, false, false)
+          end
           
         case 'done'
           % Minimization has completed, finish up
-          myself.analysisPlot('Finalize', guidata(myself.analysisPlot), myself, iterations, goodnessValues);
+          CloseAnalysisPlot(myself, goodness, stepInformation, true, true)
       end
     end
   end
@@ -246,27 +285,28 @@ classdef ThermalWaveNumbers < handle
     function [positions, positionOffsets,...
               phases, phaseOffsets,...
               amplitudes,...
-              weights] = Preformatting(data, preferences)
+              weights] = Preformatting(data, settings)
     % Preformats all the data so that the curves are centered about x=0 and
     % offset so that the peak is at y=0
-      numberOfPositions = length(data.positions);
+      numberOfSteps = length(data.positions);
       numberOfFrequencies = length(data.frequencies);
       
       % Scale the data so that the positions reflect the actual distances
-      actualPositions = data.positions * preferences.current.Analysis.scanScaling;
+      actualPositions = data.positions * settings.current.Analysis.scanScaling;
       
       % We will evaluate only the central portion
-      third = numberOfPositions / 3.0;
-      window = [actualPositions(ceiling(third)), floor(actualPositions(floor(third)))];
-      fineStep = (window(2) - window(1)) / 500;
-      finePositions = window(1):fineStep:window(2);
+      third = numberOfSteps / 3.0;
+      window = uint8([ceil(third), floor(2 * third)]);
+      fineStep = (actualPositions(window(2)) - actualPositions(window(1))) / 500;
+      finePositions = actualPositions(window(1)):fineStep:actualPositions(window(2));
       
       % We will evaluate each position/amplitude/phase set individually
-      amplitudes = zeros(numberOfFrequencies, numberOfPositions);
+      amplitudes = zeros(numberOfFrequencies, numberOfSteps);
       phaseOffsets = zeros(1, numberOfFrequencies);
       positionOffsets = zeros(1, numberOfFrequencies);
-      phases = zeros(numberOfFrequencies, numberOfPositions);
-      positions = zeros(numberOfFrequencies, numberOfPositions);
+      phases = zeros(numberOfFrequencies, numberOfSteps);
+      positions = zeros(numberOfFrequencies, numberOfSteps);
+      weights = zeros(1, numberOfFrequencies);
       
       % Loop over all the frequencies
       for f = 1:numberOfFrequencies
@@ -282,15 +322,12 @@ classdef ThermalWaveNumbers < handle
         [mu, sigma, scale] = FitGaussian(actualPositions(window(1):window(2)), data.amplitudes(f,window(1):window(2)) - min(data.amplitudes(f,:)));
         evaluatedFit = gaussian(finePositions, mu, sigma, scale) + min(data.amplitudes(f,:));
         amplitudes(f,:) = data.amplitudes(f,:) / max(evaluatedFit);
-      end
       
-      % Calculate the weights
-      if preferences.current.Analysis.weightFrequencies == 1
-        weights(f) = 1.0 / min(phases(f,:));
-      else
-        weights = ones(1, numberOfFrequencies) ./ min(min(phases));
+        % Calculate the weights
+        if settings.current.Analysis.weightFrequencies == 1
+          weights(f) = sqrt(abs(1.0 / min(phases(f,:))));
+        end
       end
-      weights = abs(weights);
     end
   end
 end

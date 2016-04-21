@@ -1,7 +1,7 @@
 classdef ConfigurationFile < handle
 % Manages the contents of a *.ini file
   
-  properties (SetAccess = immutable, GetAccess = private)
+  properties (SetAccess = immutable, GetAccess = public)
     fileName; % File name
     original; % Original settings at open
   end

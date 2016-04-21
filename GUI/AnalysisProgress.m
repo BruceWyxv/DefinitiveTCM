@@ -59,8 +59,8 @@ function AnalysisProgress_OpeningFcn(hObject, eventdata, handles, varargin) %#ok
   % Check the input arguments
   parser = inputParser;
   parser.addParameter('data', '', @isstruct);
-  parser.addParameter('preferences', '', @isstruct);
-  parser.addParameter('settings', '', @isstruct);
+  parser.addParameter('preferences', '', @(x) isa(x, 'ConfigurationFile'));
+  parser.addParameter('settings', '', @(x) isa(x, 'ConfigurationFile'));
   % Parse the input arguments
   parser.KeepUnmatched = true;
   try
@@ -153,11 +153,22 @@ function isCancelling = IsCancelling(handles)
 end
 
 
-function Finalize(handles, solutionClass, iterations, goodnessValues) %#ok<DEFNU>
-  Update(handles, solutionClass, iterations, goodnessValues);
+function Finalize(handles, solutionClass, goodness, stepInformation, success, showMessage) %#ok<DEFNU>
+  Update(handles, solutionClass, goodness, stepInformation);
   
   hold(handles.AmplitudePlot, 'off');
+  hold(handles.MinimizationPlot, 'off');
   hold(handles.PhasePlot, 'off');
+  
+  if showMessage
+    if success
+      message = 'The analysis completed succesfully! Click ''OK'' to continue...';
+    else
+      message = 'The analysis failed! Click ''OK'' to continue...';
+    end
+    
+    uiwait(msgbox(message, 'Analysis', 'modal'));
+  end
 end
 
 
@@ -185,6 +196,7 @@ function handles = InitializePlots(handles)
   set(handles.ProgressText, 'String', '');
   dataColormap = GetColormap(handles.settings.current.PlotSettings.dataColormap, numberOfFrequencies);
   hold(handles.AmplitudePlot, 'on');
+  hold(handles.MinimizationPlot, 'on');
   hold(handles.PhasePlot, 'on');
   stepSize = handles.data.positions(1,2) - handles.data.positions(1,1);
   maxPosition = max(max(handles.data.positions));
@@ -193,18 +205,54 @@ function handles = InitializePlots(handles)
   handles.PhasePlot.XLim = [(minPosition - stepSize), (maxPosition + stepSize)];
   
   % Create all the plots
+  handles.minimizationHistory = plot(handles.MinimizationPlot, 1, nan, 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.amplitudeMarker);
+  set(handles.MinimizationPlot, 'YScale', 'log');
   for f = 1:numberOfFrequencies
-    plot(handles.AmplitudePlot, handles.data.positions(f,:), handles.data.amplitudes(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.amplitudeMarker, 'Color', dataColormap(f));
-    handles.amplitudeLines(f) = plot(handles.AmplitudePlot, handles.data.positions(f,:), empty, 'LineStyle', handles.settings.current.PlotSettings.fitLineStyle, 'Color', dataColormap(f));
-    plot(handles.PhasePlot, handles.data.positions(f,:), handles.data.phase(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.phaseMarker, 'Color', dataColormap(f));
-    handles.phaseLines(f) = plot(handles.PhasePlot, handles.data.positions(f,:), empty, 'LineStyle', handles.settings.current.PlotSettings.fitLineStyle, 'Color', dataColormap(f));
+    plot(handles.AmplitudePlot, handles.data.positions(f,:), handles.data.amplitudes(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.amplitudeMarker, 'Color', dataColormap(f,:));
+    handles.amplitudeLines(f) = plot(handles.AmplitudePlot, handles.data.positions(f,:), empty, 'LineStyle', handles.settings.current.PlotSettings.fitLineStyle, 'Color', dataColormap(f,:));
+    plot(handles.PhasePlot, handles.data.positions(f,:), handles.data.phases(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.phaseMarker, 'Color', dataColormap(f,:));
+    handles.phaseLines(f) = plot(handles.PhasePlot, handles.data.positions(f,:), empty, 'LineStyle', handles.settings.current.PlotSettings.fitLineStyle, 'Color', dataColormap(f,:));
   end
 end
 
 
-function halt = Update(handles, solutionClass, iterations, goodnessValues)
+function halt = Update(handles, solutionClass, goodness, stepInformation)
 % Updates the dialog based on the results of the current iteration
-  % TODO update the plots
+  % Update the minimization history plot
+  oldIterations = get(handles.minimizationHistory, 'XData');
+  oldGoodnesses = get(handles.minimizationHistory, 'YData');
+  iterationHistories = handles.preferences.current.Analysis.iterationHistories;
+  iterationHistoryCull = handles.preferences.current.Analysis.iterationHistoryCull;
+  iterations = length(oldIterations);
+  endIteration = iterations;
+  if iterations <= iterationHistories
+    startIteration = 1;
+    endIteration = iterationHistories;
+  elseif iterations <= iterationHistories + iterationHistoryCull
+    startIteration = iterations - iterationHistories;
+  else
+    startIteration = iterationHistoryCull;
+  end
+  if isnan(oldGoodnesses(1))
+    newIterations = oldIterations;
+    newGoodnesses = goodness(1);
+  else
+    newIterations = [oldIterations, (iterations + 1)];
+    newGoodnesses = [oldGoodnesses, goodness(1)];
+  end
+  set(handles.minimizationHistory, 'XData', newIterations, 'YData', newGoodnesses);
+  handles.MinimizationPlot.XLim = [(startIteration - 1), (endIteration + 1)];
+
+  % Update the phase and amplitude plots
+  [numberOfFrequencies, numberOfSteps] = size(handles.data.positions);
+  solution = solutionClass.analyticalSolution;
+  for f = 1:numberOfFrequencies
+    set(handles.amplitudeLines(f), 'YData', solution.amplitudes(f,:));
+    set(handles.phaseLines(f), 'YData', solution.phases(f,:));
+  end
+  
+  % Draw the updates
+  drawnow limitrate;
   
   halt = IsCancelling(handles);
 end
