@@ -256,13 +256,7 @@ function [fullPath, folderExists, fileExists] = CheckPath(handles)
 % Checks the current path of the save file. If there is an error then the
 % appropriate edit box is given a light red background. Otherwise the edit
 % boxes are set to a white background.
-  persistent fileUtilities;
-  
-  if isempty(fileUtilities)
-    fileUtilities = Files();
-  end
-  
-  fullPath = fileUtilities.GetFileName(handles.saveFolder, handles.sampleName);
+  fullPath = fullfile(handles.saveFolder, strcat(handles.sampleName, '.mat'));
   
   folderExists = false;
   fileExists = false;

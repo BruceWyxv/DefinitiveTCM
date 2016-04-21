@@ -18,6 +18,7 @@ classdef ThermalWaveNumbers < handle
   properties (SetAccess = immutable, GetAccess = public)
     amplitudeData; % Data amplitude
     amplitudeWeight; % Fractional weight applied when fitting the amplitude
+    filmThickness; % Film thickness, in m
     fitMask; % Logical matrix identifying which seed parameters to fit, inverse mask (false = reject, true = accept)
     frequencies; % Data frequencies
     isAnisotropic; % Boolean representing the fit type
@@ -41,6 +42,7 @@ classdef ThermalWaveNumbers < handle
   
   methods
     function myself = ThermalWaveNumbers(data,...
+                                         filmThickness,...
                                          amplitudeWeight,...
                                          fitMask,...
                                          preferences,...
@@ -48,6 +50,7 @@ classdef ThermalWaveNumbers < handle
                                          initialValues)
     % Create the class
       myself.iterations = 0;
+      myself.filmThickness = filmThickness;
       myself.frequencies = data.frequencies;
       myself.numberOfFrequencies = length(myself.frequencies);
       myself.numberOfSteps = length(data.positions(1,:));
@@ -136,7 +139,7 @@ classdef ThermalWaveNumbers < handle
     end
     
     function analyticalSolution = IsotropicAnalysisStep(myself, currentFitValues)
-    % Performs the isotropic 
+    % Performs an isotropic step
       % Set the values of the properties, updating the new values of the
       % properties being fitted
       currentValues = myself.initialValues;
@@ -146,7 +149,7 @@ classdef ThermalWaveNumbers < handle
       Ds = currentValues(FitProperties.SubstrateDiffusivity);
       kf = currentValues(FitProperties.FilmConductivity);
       Df = currentValues(FitProperties.FilmDiffusivity);
-      df = Df;
+      df = myself.filmThickness;
       Re = currentValues(FitProperties.SpotSize);
       Rth = currentValues(FitProperties.KapitzaResistance);
       amplitudes = zeros(myself.numberOfFrequencies, myself.numberOfSteps);
@@ -212,18 +215,10 @@ classdef ThermalWaveNumbers < handle
         solution = -trapz(integrand, 2)' * delp;
         phases(f,:) = angle(solution);
 
-        if myself.frequencies(f) <= myself.settings.current.Analysis.frequencyOffsetLimit;
-          % Y = 0 offset solution
-          integrand0 = besselj(0, pZeros) .* int;
-          solution0 = -trapz(integrand0) * delp;
-          phaseAt0 = angle(solution0);
-
-          % Account for phase jumps of pi
-          phaseOffset = round(abs(phaseAt0 - max(phases(f,:))) / pi);
-          phaseAt0 = phaseAt0 + (pi * phaseOffset);
-
-          phases(f,:) = phases(f,:) - phaseAt0;
-        end
+        % Y = 0 offset
+        middle = ceil(myself.numberOfSteps / 2);
+        phaseOffset = phases(f,middle);
+        phases(f,:) = phases(f,:) - phaseOffset;
         
 %         % Make a few behaviors look very bad to fminsearch
 %         middle = ceil(myself.numberOfSteps / 2);

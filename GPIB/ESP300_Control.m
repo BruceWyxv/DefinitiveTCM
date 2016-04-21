@@ -251,12 +251,16 @@ classdef ESP300_Control < GPIB_Interface
     function approveHome = HomeAxis(myself, axis, approveHome)
     % Moves a stage to the home position
       if strcmp(approveHome, 'ask')
-        answer = questdlg('Preparing to home the stages. Is this OK?', 'Warning', 'Yes', 'Abort', 'Yes');
+        answer = questdlg('Preparing to home the stages. Is this OK?', 'Warning', 'Yes', 'Already Homed', 'Abort', 'Yes');
         
         switch answer
           case 'Yes'
             approveHome = 'yes';
             uiwait(warndlg({'Ensure it is safe to home the stages.'; 'Click ''OK'' to proceed.'}, 'Check sample', 'modal'));
+            
+          case 'Already Homed'
+            approveHome = 'already';
+            return;
             
           case 'Abort'
             error('Stages will not be homed. Connection to the stage controller failed.');

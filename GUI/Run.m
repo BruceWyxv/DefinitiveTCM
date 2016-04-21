@@ -60,9 +60,9 @@ function Run_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   parser.addParameter('laserScanController', '', @(x) isa(x, 'ESP300_Control'));
   parser.addParameter('lockInAmpController', '', @(x) isa(x, 'SR830_Control'));
   parser.addParameter('mainWindow', '', @ishandle);
-  parser.addParameter('preferences', '', @isstruct);
+  parser.addParameter('preferences', '', @(x) isa(x, 'ConfigurationFile'));
   parser.addParameter('pumpLaserController', '', @(x) isa(x, 'DS345_Control'));
-  parser.addParameter('settings', '', @isstruct);
+  parser.addParameter('settings', '', @(x) isa(x, 'ConfigurationFile'));
   parser.addParameter('stageController', '', @(x) isa(x, 'ESP300_Control'));
   % Parse the input arguments
   parser.KeepUnmatched = true;
@@ -98,6 +98,7 @@ function Run_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.PhasePlot = subplot(1, 2, 1, 'Parent', handles.PlotsPlaceholder);
   title(handles.AmplitudePlot, 'Amplitude');
   title(handles.PhasePlot, 'Phase');
+  set(handles.AmplitudePlot, 'YScale', 'log');
 
   % Update handles structure
   guidata(hObject, handles);
@@ -169,10 +170,10 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
   fineStepSize = stepSize / 25;
   halfPosition = handles.settings.current.CenterScan.scanDistance / 2;
   currentPosition = handles.laserScanController.GetAbsoluteCoordinates(scanAxes);
-  positions = [(currentPosition(1) - halfPosition):stepSize:(currentPosition(1) + halfPosition);...
-               (currentPosition(2) - halfPosition):stepSize:(currentPosition(2) + halfPosition)];
-  finePositions = [(currentPosition(1) - halfPosition):fineStepSize:(currentPosition(1) + halfPosition);...
-                   (currentPosition(2) - halfPosition):fineStepSize:(currentPosition(2) + halfPosition)];
+  positions = [(currentPosition - halfPosition):stepSize:(currentPosition + halfPosition);
+               (currentPosition - halfPosition):stepSize:(currentPosition + halfPosition)];
+  finePositions = [(currentPosition - halfPosition):fineStepSize:(currentPosition + halfPosition);
+                   (currentPosition - halfPosition):fineStepSize:(currentPosition + halfPosition)];
   
   % Set the controller settings
   handles.pumpLaserController.SetFrequency(handles.settings.current.CenterScan.frequency);
@@ -231,8 +232,16 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
     end
     set(handles.ProgressText, 'String', sprintf('Centering the lasers...  Axis: %s (%i of 2)', axisName, a));
     
+    % Correlate the directionality of the positions to the user-percieved
+    % directions
+    if ReverseDirectionality(scanAxes(a), handles.settings)
+      scanPositions = -positions(a,:);
+    else
+      scanPositions = positions(a,:);
+    end
+  
     % Account for hysteresis of the stage
-    handles.laserScanController.MinimizeHysteresis(scanAxes(a), positions(a,1:2));
+    handles.laserScanController.MinimizeHysteresis(scanAxes(a), scanPositions(1:2));
     
     for i = 1:steps
       % Check to see if the user has pressed the cancel button
@@ -242,7 +251,7 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
       end
 
       % Move to the scan position
-      handles.laserScanController.MoveAxis(scanAxes(a), positions(a,i));
+      handles.laserScanController.MoveAxis(scanAxes(a), scanPositions(i));
       handles.laserScanController.WaitForAction(scanAxes(a));
 
       % Give the lock-in amp time to stabilize
@@ -280,8 +289,14 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
     else
       recommendAgain = recommendAgain | false;
     end
-    handles.laserScanController.MinimizeHysteresis(scanAxes(a), positions(a,1:2));
-    handles.laserScanController.MoveAxis(scanAxes(a), maxPosition);
+    handles.laserScanController.MinimizeHysteresis(scanAxes(a), scanPositions(1:2));
+    % Correlate the directionality of the positions to the user-percieved
+    % directions
+    if ReverseDirectionality(scanAxes(a), handles.settings)
+      handles.laserScanController.MoveAxis(scanAxes(a), -maxPosition);
+    else
+      handles.laserScanController.MoveAxis(scanAxes(a), maxPosition);
+    end
     handles.laserScanController.WaitForAction(scanAxes(a));
     handles.laserScanController.SetToZero(scanAxes(a));
   end
@@ -364,9 +379,6 @@ function [data, success] = Data(handles) %#ok<DEFNU>
       break;
     end
     
-    % Account for hysteresis of the stage
-    handles.laserScanController.MinimizeHysteresis(xAxisID, positions(1:2));
-    
     % Check for performing a test run
     if handles.preferences.current.CollectData.testRun == 1 && redoTest
       % Set up for a test of the current location
@@ -391,6 +403,17 @@ function [data, success] = Data(handles) %#ok<DEFNU>
     end
     legend(handles.AmplitudePlot, legendItems{1:f}, 'Location', 'South');
     legend(handles.PhasePlot, legendItems{1:f}, 'Location', 'South');
+  
+    % Correlate the directionality of the positions to the user-percieved
+    % directions
+    if ReverseDirectionality(xAxisID, handles.settings)
+      scanPositions = -positions(:);
+    else
+      scanPositions = positions(:);
+    end
+    
+    % Account for hysteresis of the stage
+    handles.laserScanController.MinimizeHysteresis(xAxisID, scanPositions(1:2));
     
     % Set up the equipment
     handles.pumpLaserController.SetFrequency(frequency);
@@ -406,7 +429,7 @@ function [data, success] = Data(handles) %#ok<DEFNU>
       end
 
       % Move to the scan position
-      handles.laserScanController.MoveAxis(xAxisID, positions(i));
+      handles.laserScanController.MoveAxis(xAxisID, scanPositions(i));
       handles.laserScanController.WaitForAction(xAxisID);
 
       % Give the lock-in amp time to stabilize
@@ -609,4 +632,18 @@ end
 function isCancelling = IsCancelling(handles)
 % Checks to see if the user has requested a cancel operation
  isCancelling = strcmp(get(handles.CancelButton, 'Enable'), 'off');
+end
+
+
+function reverse = ReverseDirectionality(axisID, settings)
+% Detects whether the user-percieved directions are opposite of the stage
+% directions
+  reverse = false;
+  switch axisID
+    case settings.current.LaserController.xAxisID
+      reverse = (settings.current.LaserController.reverseX == 1);
+      
+    case settings.current.LaserController.yAxisID
+      reverse = (settings.current.LaserController.reverseY == 1);
+  end
 end

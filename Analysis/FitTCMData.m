@@ -24,9 +24,9 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
 %               * AnalysisModel     (default = 'Fast')
 %                   Specifies which parameters should be minimized and
 %                   included in the output:
-%                       Fast = ks, ds, Re
-%                       Film = kf, df, Re, Rth
-%                       Full = ks, ds, Re, Rth
+%                       Fast = ks, Ds, Re
+%                       Film = kf, Df, Re, Rth
+%                       Full = ks, Ds, Re, Rth
 %                   Notes:
 %                       1) 'Fast' will cap the maximum frequency at 50 kHz
 %                       2) Only 'Full' will perform any anisotropic fits
@@ -224,6 +224,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   
   % Set up and run the analysis
   analyzer = ThermalWaveNumbers(data,...
+                                filmThickness,...
                                 amplitudeWeight,...
                                 fitMask,...
                                 preferences,...
