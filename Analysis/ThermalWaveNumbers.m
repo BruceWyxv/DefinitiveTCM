@@ -17,8 +17,8 @@ classdef ThermalWaveNumbers < handle
   
   properties (SetAccess = immutable, GetAccess = public)
     amplitudeData; % Data amplitude
+    amplitudeWeight; % Fractional weight applied when fitting the amplitude
     fitMask; % Logical matrix identifying which seed parameters to fit, inverse mask (false = reject, true = accept)
-    fitAmplitude; % Logical identifying whether the amplitude should be used in the fit
     frequencies; % Data frequencies
     isAnisotropic; % Boolean representing the fit type
     phaseData; % Modified data prequencies, max at y = 0
@@ -41,7 +41,7 @@ classdef ThermalWaveNumbers < handle
   
   methods
     function myself = ThermalWaveNumbers(data,...
-                                         fitAmplitude,...
+                                         amplitudeWeight,...
                                          fitMask,...
                                          preferences,...
                                          settings,...
@@ -56,7 +56,7 @@ classdef ThermalWaveNumbers < handle
       
       % Assign properties
       myself.fitMask = fitMask;
-      myself.fitAmplitude = fitAmplitude;
+      myself.amplitudeWeight = amplitudeWeight;
       myself.initialValues = initialValues;
       myself.numberOfFitParameters = sum(myself.fitMask);
       
@@ -120,11 +120,15 @@ classdef ThermalWaveNumbers < handle
     % Determines how good the current fitted values are
       chiSquared = 0;
       for f = 1:myself.numberOfFrequencies
-        localChiSquared = CalculateChiSquared(myself.phaseData(f,:), analyticalSolution.phases(f,:));
-        if myself.fitAmplitude == 1
-          localChiSquared = localChiSquared + CalculateChiSquared(myself.amplitudeData(f,:), analyticalSolution.amplitudes(f,:));
+        phaseChiSquared = CalculateChiSquared(myself.phaseData(f,:), analyticalSolution.phases(f,:));
+        if myself.amplitudeWeight > 0
+          amplitudeChiSquared = CalculateChiSquared(myself.amplitudeData(f,:), analyticalSolution.amplitudes(f,:));
+          phaseScale = abs(max(analyticalSolution.phases(f,:)) - min(analyticalSolution.phases(f,:)));
+          amplitudeChiSquared = amplitudeChiSquared * phaseScale * myself.amplitudeWeight;
+        else
+          amplitudeChiSquared = 0;
         end
-        chiSquared = chiSquared + localChiSquared * myself.weights(f);
+        chiSquared = chiSquared + ((phaseChiSquared + amplitudeChiSquared) * myself.weights(f));
       end
       
       degreesOfFreedom = ((myself.numberOfSteps - myself.numberOfFitParameters) * myself.numberOfFrequencies);
