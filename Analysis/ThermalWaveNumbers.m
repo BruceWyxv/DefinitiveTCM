@@ -6,7 +6,6 @@ classdef ThermalWaveNumbers < handle
     absorbedPower; % Fractional absorbed laser power
     absorptionCoefficient; % Absorption coefficient
     fitFunction; % Handle to the function used for fitting
-    initialValues; % Initial parameter values
     numberOfFitParameters; % Number of parameters being fitted
     numberOfFrequencies; % Number of frequencies in the data
     numberOfSteps; % Number of steps per frequency
@@ -21,6 +20,7 @@ classdef ThermalWaveNumbers < handle
     filmThickness; % Film thickness, in m
     fitMask; % Logical matrix identifying which seed parameters to fit, inverse mask (false = reject, true = accept)
     frequencies; % Data frequencies
+    initialValues; % Initial parameter values
     isAnisotropic; % Boolean representing the fit type
     phaseData; % Modified data prequencies, max at y = 0
     phaseOffsets; % Offset from original data
@@ -134,8 +134,9 @@ classdef ThermalWaveNumbers < handle
         chiSquared = chiSquared + ((phaseChiSquared + amplitudeChiSquared) * myself.weights(f));
       end
       
-      degreesOfFreedom = ((myself.numberOfSteps - myself.numberOfFitParameters) * myself.numberOfFrequencies);
+      degreesOfFreedom = myself.numberOfFitParameters - 1;
       chiSquared = chiSquared / degreesOfFreedom;
+      myself.chiSquared = chiSquared;
     end
     
     function analyticalSolution = IsotropicAnalysisStep(myself, currentFitValues)
@@ -209,28 +210,36 @@ classdef ThermalWaveNumbers < handle
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %         int = p .* (A + B + E);
   
-        % Thermal wave solution
-        absSteps = abs(steps);
-        integrand = bsxfun(@times, besselj(0, absSteps' * p), int);
-        solution = -trapz(integrand, 2)' * delp;
-        phases(f,:) = angle(solution);
+%         % Thermal wave solution
+%         absSteps = abs(steps);
+%         integrand = bsxfun(@times, besselj(0, absSteps' * p), int);
+%         solution = -trapz(integrand, 2)' * delp;
+%         phases(f,:) = angle(solution);
 
-        % Y = 0 offset
-        middle = ceil(myself.numberOfSteps / 2);
-        phaseOffset = phases(f,middle);
-        phases(f,:) = phases(f,:) - phaseOffset;
-        
-%         % Make a few behaviors look very bad to fminsearch
+%         % Y = 0 offset
 %         middle = ceil(myself.numberOfSteps / 2);
-%         if ks > 0 && Ds > 0 && kf > 0 && Df > 0 && Re > 0 && Rth > 0
-%           if phases(f,1) > phases(f,middle)
-%             phases(f,:) = -phases(f,:);
-%           end
-%           phases(f,:) = phases(f,:) - phases(f,middle);
-%         else
-%           phases(f,:) = phases(f,:) * 180;
-%         end
+%         phaseOffset = phases(f,middle);
+%         phases(f,:) = phases(f,:) - phaseOffset;
 
+        solution = zeros(1, myself.numberOfSteps);
+        for i = 1:myself.numberOfSteps
+          y = abs(steps(i));
+          integrand = besselj(0, p * y) .* int;
+          solution(i) = -trapz(integrand) * delp;
+        end
+        phases(f,:) = angle(solution);
+        
+        % get value at y=0 for offset calculation
+        integrand0 = besselj(0, 0) * int;
+        T0 = -trapz(integrand0) * delp;
+        offsetAngle = angle(T0);
+
+        % Get the phases
+        
+        % Account for phase jumps of PI
+        delta = round(abs(offsetAngle - max(phases(f,:))) / pi);
+        offsetAngle = offsetAngle + pi * delta;
+        phases(f,:) = phases(f,:) - offsetAngle;
         amplitudes(f,:) = abs(solution) / max(abs(solution));
       end
       
@@ -294,9 +303,11 @@ classdef ThermalWaveNumbers < handle
       actualPositions = data.positions * settings.current.Analysis.scanScaling;
       
       % We will evaluate only the central portion
-      third = numberOfSteps / 3.0;
-      window = uint8([ceil(third), floor(2 * third)]);
-      fineStep = (actualPositions(window(2)) - actualPositions(window(1))) / 500;
+      middle = round(numberOfSteps / 2);
+      window = [(middle - 4), (middle + 4)];
+%       third = numberOfSteps / 3.0;
+%       window = uint8([ceil(third), floor(2 * third)]);
+      fineStep = (actualPositions(window(2)) - actualPositions(window(1))) / 100;
       finePositions = actualPositions(window(1)):fineStep:actualPositions(window(2));
       
       % We will evaluate each position/amplitude/phase set individually

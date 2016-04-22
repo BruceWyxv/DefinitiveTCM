@@ -235,10 +235,10 @@ function halt = Update(handles, solutionClass, goodness, stepInformation)
   end
   if isnan(oldGoodnesses(1))
     newIterations = oldIterations;
-    newGoodnesses = goodness(1);
+    newGoodnesses = solutionClass.chiSquared;
   else
     newIterations = [oldIterations, (iterations + 1)];
-    newGoodnesses = [oldGoodnesses, goodness(1)];
+    newGoodnesses = [oldGoodnesses, solutionClass.chiSquared];
   end
   set(handles.minimizationHistory, 'XData', newIterations, 'YData', newGoodnesses);
   handles.MinimizationPlot.XLim = [(startIteration - 1), (endIteration + 1)];
