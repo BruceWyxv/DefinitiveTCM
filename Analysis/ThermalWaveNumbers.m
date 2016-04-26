@@ -30,13 +30,15 @@ classdef ThermalWaveNumbers < handle
   end
   
   properties (SetAccess = private, GetAccess = private)
-    analysisPlot;
+    analysisPlot; % A handle to a window that plots the intermediate values
   end
   
   properties (SetAccess = private, GetAccess = public)
     analyticalSolution; % The most recent analytic solution data
     chiSquared; % The most recent chi-squared value
+    elapsedTime; % Amount of time spent in the analysis
     iterations; % The number of iterations the solutions has performed
+    timer; % A timer user to measure the duration of an analysis
     values; % The most recent values
   end
   
@@ -104,6 +106,9 @@ classdef ThermalWaveNumbers < handle
       fminsearchOutput.fval = finalGoodness;
       fminsearchOutput.exitflag = exitFlag;
       fminsearchOutput.output = output;
+  
+      % Report on the elapsed time
+      fprintf('It took %g seconds to analyze the data.\n\n', myself.elapsedTime);
     end
   end
   
@@ -150,7 +155,7 @@ classdef ThermalWaveNumbers < handle
       Ds = currentValues(FitProperties.SubstrateDiffusivity);
       kf = currentValues(FitProperties.FilmConductivity);
       Df = currentValues(FitProperties.FilmDiffusivity);
-      df = myself.filmThickness;
+      h = myself.filmThickness;
       Re = currentValues(FitProperties.SpotSize);
       Rth = currentValues(FitProperties.KapitzaResistance);
       amplitudes = zeros(myself.numberOfFrequencies, myself.numberOfSteps);
@@ -166,75 +171,48 @@ classdef ThermalWaveNumbers < handle
         pmax = 10 / (2.0e-6);
         delp = pmax / 1000;
         p = 0:delp:pmax;
-%         p2 = p.^2;
-        pZeros = zeros(1,length(p));
+        p2 = p.^2;
         
         % Parameters from writeup on 3-19-14
-        nf=sqrt(p.^2+1i*omega/Df);
-        ns=sqrt(p.^2+1i*omega/Ds);
-        F=P0*alphaf*exp(-p.^2*Re^2/4)/(2*pi*kf);
-        E=F./(alphaf^2-p.^2-1i*omega/Df);
-        A=-E.*(-alphaf.*kf.*nf-alphaf.*kf.*ns.*ks.*Rth.*nf-alphaf.*ns.*ks+alphaf.*kf.*exp(-alphaf.*df-nf.*df).*nf-exp(-alphaf.*df-nf.*df).*nf.*ns.*ks+exp(-alphaf.*df-nf.*df).*nf.*kf.*ns.*ks.*Rth.*alphaf)./nf./(-nf.*kf-nf.*kf.*ns.*ks.*Rth-ns.*ks+nf.*kf.*exp(-2.*nf.*df)+nf.*kf.*ns.*ks.*Rth.*exp(-2.*nf.*df)-ns.*ks.*exp(-2.*nf.*df));
-        B=-E.*(alphaf.*kf.*exp(-alphaf.*df).*nf-exp(-alphaf.*df).*nf.*ns.*ks+exp(-alphaf.*df).*nf.*kf.*ns.*ks.*Rth.*alphaf-nf.*kf.*exp(-nf.*df).*alphaf-alphaf.*kf.*ns.*ks.*Rth.*exp(-nf.*df).*nf+alphaf.*ns.*ks.*exp(-nf.*df)).*exp(-nf.*df)./nf./(-nf.*kf-nf.*kf.*ns.*ks.*Rth-ns.*ks+nf.*kf.*exp(-2.*nf.*df)+nf.*kf.*ns.*ks.*Rth.*exp(-2.*nf.*df)-ns.*ks.*exp(-2.*nf.*df));
-        int=p.*(A+B+E);
-%         nf = sqrt(p2 + 1i * omega / Df);
-%         ns = sqrt(p2 + 1i * omega / Ds);
-%         ksns = ks * ns;
-%         kfnf = kf * nf;
-%         rsp1 = Rth * ksns + 1;
-%         exp2NfDf = exp(-2 * nf * Df);
-%         denominator = (nf .* ((kfnf .* (exp2NfDf - 1) .* rsp1) - (exp2NfDf  + 1) .* ksns));
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%         F = P0 * myself.absorptionCoefficient * exp(-p2 * Re^2 ...
-% / ...                                                     ----
-%                                                            4) ...
-% / ...       --------------------------------------------------
-%                    (2 * pi * kf);
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%         E =                        F ...
-% ./ ...      -------------------------------------------------
-%             (myself.absorptionCoefficient^2 - p2 - 1i * omega ...
-% / ...                                                   -----
-%                                                          Df);
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%         expDfAlphaNf = exp(-Df * (myself.absorptionCoefficient + nf));
-%         A = -E .* (myself.absorptionCoefficient * (kfnf .* (expDfAlphaNf + 1) .* rsp1 - ksns) - ks * expDfAlphaNf .* ksns) ...
-% ./ ...      -------------------------------------------------------------------------------------------------------------
-%                                                       denominator;
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%         expAlphaDf = exp(-myself.absorptionCoefficient * Df);
-%         expDfNf = exp(-nf * Df);
-%         B = -E .* (myself.absorptionCoefficient * (kfnf .* (expAlphaDf - expDfNf) .* rsp1 + ksns .* expDfNf) - nf .* expAlphaDf .* ksns) .* expDfNf ...
-% ./ ...      --------------------------------------------------------------------------------------------------------------------------------
-%                                                                   denominator;
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%         int = p .* (A + B + E);
-  
-%         % Thermal wave solution
-%         absSteps = abs(steps);
-%         integrand = bsxfun(@times, besselj(0, absSteps' * p), int);
-%         solution = -trapz(integrand, 2)' * delp;
-%         phases(f,:) = angle(solution);
+        % Condensing the math here adds legibility and reduces compute time
+        % by about 5%
+        nf = sqrt(p2 + 1i * omega / Df);
+        ns = sqrt(p2 + 1i * omega / Ds);
+        common1 = exp(-2 * nf * h);
+        common2 = exp(-h * (alphaf * nf));
+        common3 = exp(-alphaf * h);
+        common4 = exp(-nf * h);
+        nfkf = nf * kf;
+        nsks = ns * ks;
+        denominator = nf .* ...
+          (- nfkf .* (1 + nsks * Rth ) .* (1 - common1) ...
+           - nsks .* (1 + common1));
+        F = P0 * alphaf * exp(-p2 * Re^2 / 4)/(2 * pi * kf);
+        E = F ./ (alphaf^2 - p2 - 1i * omega / Df);
+        A = E .* ...
+          (+ alphaf * (+ nfkf .* (1 + nsks * Rth) .* (1 - common2)...
+                       + nsks) ...
+           + common2 .* nf .* nsks) ...
+          ./ denominator;
+        B = -E .* common4 .* ...
+          (+ alphaf * (+ nfkf .* (common3 - common4) .* (1 + nsks * Rth) ...
+                       + nsks .* common4) ...
+           - common3 .* nf .* nsks) ...
+           ./ denominator;
+        int = p .* (A + B + E);
 
-%         % Y = 0 offset
-%         middle = ceil(myself.numberOfSteps / 2);
-%         phaseOffset = phases(f,middle);
-%         phases(f,:) = phases(f,:) - phaseOffset;
-
-        solution = zeros(1, myself.numberOfSteps);
-        for i = 1:myself.numberOfSteps
-          y = abs(steps(i));
-          integrand = besselj(0, p * y) .* int;
-          solution(i) = -trapz(integrand) * delp;
-        end
+        % Generate the solutions
+        % Eliminating the for loop for each step improves performance by
+        % about 5%
+        measurementPositions = abs(steps)';
+        integrand = bsxfun(@times, besselj(0, measurementPositions * p), int);
+        solution = -trapz(integrand, 2) * delp;
         phases(f,:) = angle(solution);
         
-        % get value at y=0 for offset calculation
+        % Get value at y=0 for offset calculation
         integrand0 = besselj(0, 0) * int;
         T0 = -trapz(integrand0) * delp;
         offsetAngle = angle(T0);
-
-        % Get the phases
         
         % Account for phase jumps of PI
         delta = round(abs(offsetAngle - max(phases(f,:))) / pi);
@@ -261,6 +239,7 @@ classdef ThermalWaveNumbers < handle
       switch state
         case 'init'
           % Create the plots
+          myself.timer = tic;
           data.amplitudes = myself.amplitudeData;
           data.phases = myself.phaseData;
           data.positions = myself.positions;
@@ -284,6 +263,7 @@ classdef ThermalWaveNumbers < handle
           
         case 'done'
           % Minimization has completed, finish up
+          myself.elapsedTime = toc(myself.timer);
           CloseAnalysisPlot(myself, goodness, stepInformation, true, true)
       end
     end

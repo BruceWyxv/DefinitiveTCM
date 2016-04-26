@@ -71,8 +71,6 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
 %
 % File:         FitThermalAnisotropy.m Author:       Brycen Wendt
 % (brycen.wendt@inl.gov; wendbryc@isu.edu) Date Created: 09/30/2015
-  startTimer = tic;
-  
   % Get the databases and utilities
   database = Database();
 
@@ -236,7 +234,4 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   if preferencesProvided == false && settingsProvided == false
     configManager.delete();
   end
-  
-  elapsedTime = toc(startTimer);
-  fprintf('It took %g seconds to analyze the data.\n\n', elapsedTime);
 end
