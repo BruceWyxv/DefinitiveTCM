@@ -18,6 +18,11 @@ function h = uiwaitbar(varargin)
         
       case 'update'
         Update(varargin{2}, varargin{3});
+        
+      case 'get'
+        waitbar = get(varargin{2}, 'Child');
+        data = get(waitbar, 'XData');
+        h = data(3);
     end
   else
     Update(varargin{1}, varargin{2});

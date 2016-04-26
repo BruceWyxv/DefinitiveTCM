@@ -36,10 +36,11 @@ classdef ThermalWaveNumbers < handle
   properties (SetAccess = private, GetAccess = public)
     analyticalSolution; % The most recent analytic solution data
     chiSquared; % The most recent chi-squared value
+    currentValues; % The most current values
     elapsedTime; % Amount of time spent in the analysis
     iterations; % The number of iterations the solutions has performed
+    previousValues; % The values from th previous iteration
     timer; % A timer user to measure the duration of an analysis
-    values; % The most recent values
   end
   
   methods
@@ -69,7 +70,7 @@ classdef ThermalWaveNumbers < handle
       [myself.positions, myself.positionOffsets,...
        myself.phaseData, myself.phaseOffsets,...
        myself.amplitudeData,...
-       myself.weights] = ThermalWaveNumbers.Preformatting(data, myself.settings);
+       myself.weights] = ThermalWaveNumbers.Preformatting(data, myself.preferences, myself.settings);
       
       % Precalculate some values
       myself.absorbedPower = 1;
@@ -94,7 +95,11 @@ classdef ThermalWaveNumbers < handle
       problem.objective = fitEvaluation;
       problem.x0 = startValues;
       problem.solver = 'fminsearch';
-      problem.options = optimset('OutputFcn', @myself.MinimizationPlot);
+      problem.options = optimset('MaxFunEvals', myself.settings.current.Analysis.maxEvaluations,...
+                                 'MaxIter', myself.settings.current.Analysis.maxEvaluations,...
+                                 'OutputFcn', @myself.MinimizationPlot,...
+                                 'TolFun', myself.settings.current.Analysis.tolerance,...
+                                 'TolX', myself.settings.current.Analysis.tolerance);
       [finalValues, finalGoodness, exitFlag, output] = fminsearch(problem);
       
       % Return the results
@@ -117,11 +122,9 @@ classdef ThermalWaveNumbers < handle
       analyticalSolution = myself + currentFitValues;
     end
     
-    function CloseAnalysisPlot(myself, goodness, stepInformation, success, showMessage)
+    function FinalizeAnalysisPlot(myself, success, showMessage)
     % Closes the analysis plot window
-      AnalysisProgress('Finalize', guidata(myself.analysisPlot), myself, goodness, stepInformation, success, showMessage);
-      close(myself.analysisPlot);
-      delete(myself.analysisPlot);
+      AnalysisProgress('Finalize', myself.analysisPlot, guidata(myself.analysisPlot), myself, success, showMessage);
     end
     
     function chiSquared = GoodnessOfFit(myself, analyticalSolution)
@@ -148,16 +151,17 @@ classdef ThermalWaveNumbers < handle
     % Performs an isotropic step
       % Set the values of the properties, updating the new values of the
       % properties being fitted
-      currentValues = myself.initialValues;
-      currentValues(myself.fitMask) = currentFitValues;
+      myself.previousValues = myself.currentValues;
+      myself.currentValues = myself.initialValues;
+      myself.currentValues(myself.fitMask) = currentFitValues;
       alphaf = myself.absorptionCoefficient;
-      ks = currentValues(FitProperties.SubstrateConductivity);
-      Ds = currentValues(FitProperties.SubstrateDiffusivity);
-      kf = currentValues(FitProperties.FilmConductivity);
-      Df = currentValues(FitProperties.FilmDiffusivity);
+      ks = myself.currentValues(FitProperties.SubstrateConductivity);
+      Ds = myself.currentValues(FitProperties.SubstrateDiffusivity);
+      kf = myself.currentValues(FitProperties.FilmConductivity);
+      Df = myself.currentValues(FitProperties.FilmDiffusivity);
       h = myself.filmThickness;
-      Re = currentValues(FitProperties.SpotSize);
-      Rth = currentValues(FitProperties.KapitzaResistance);
+      Re = myself.currentValues(FitProperties.SpotSize);
+      Rth = myself.currentValues(FitProperties.KapitzaResistance);
       amplitudes = zeros(myself.numberOfFrequencies, myself.numberOfSteps);
       phases = zeros(myself.numberOfFrequencies, myself.numberOfSteps);
       
@@ -232,7 +236,7 @@ classdef ThermalWaveNumbers < handle
       myself.analyticalSolution = analyticalSolution;
     end
     
-    function halt = MinimizationPlot(myself, goodness, stepInformation, state)
+    function halt = MinimizationPlot(myself, goodness, stepInformation, state) %#ok<INUSL>
     % Plots the progress of the minimization
       halt = false;
       
@@ -241,6 +245,7 @@ classdef ThermalWaveNumbers < handle
           % Create the plots
           myself.timer = tic;
           data.amplitudes = myself.amplitudeData;
+          data.frequencies = myself.frequencies;
           data.phases = myself.phaseData;
           data.positions = myself.positions;
           myself.analysisPlot = AnalysisProgress('Data', data,...
@@ -248,23 +253,28 @@ classdef ThermalWaveNumbers < handle
                                                  'Settings', myself.settings);
           
         case 'iter'
+          % Calculate the current elapsed time
+          myself.elapsedTime = toc(myself.timer);
+          
           % Update the plots
-          halt = AnalysisProgress('Update', guidata(myself.analysisPlot), myself, goodness, stepInformation);
+          halt = AnalysisProgress('Update', guidata(myself.analysisPlot), myself);
           if halt
-            CloseAnalysisPlot(myself, goodness, stepInformation, false, false)
+            FinalizeAnalysisPlot(myself, false, false)
           end
           
         case 'interrupt'
           % Update the plots
-          halt = AnalysisProgress('Update', guidata(myself.analysisPlot), myself, goodness, stepInformation);
+          halt = AnalysisProgress('Update', guidata(myself.analysisPlot), myself);
           if halt
-            CloseAnalysisPlot(myself, goodness, stepInformation, false, false)
+            FinalizeAnalysisPlot(myself, false, false)
           end
           
         case 'done'
-          % Minimization has completed, finish up
+          % Calculate the total elapsed time
           myself.elapsedTime = toc(myself.timer);
-          CloseAnalysisPlot(myself, goodness, stepInformation, true, true)
+          
+          % Minimization has completed, finish up
+          FinalizeAnalysisPlot(myself, true, true)
       end
     end
   end
@@ -273,7 +283,7 @@ classdef ThermalWaveNumbers < handle
     function [positions, positionOffsets,...
               phases, phaseOffsets,...
               amplitudes,...
-              weights] = Preformatting(data, settings)
+              weights] = Preformatting(data, preferences, settings)
     % Preformats all the data so that the curves are centered about x=0 and
     % offset so that the peak is at y=0
       numberOfSteps = length(data.positions);
@@ -314,7 +324,7 @@ classdef ThermalWaveNumbers < handle
         amplitudes(f,:) = data.amplitudes(f,:) / max(evaluatedFit);
       
         % Calculate the weights
-        if settings.current.Analysis.weightFrequencies == 1
+        if preferences.current.Analysis.weightFrequencies == 1
           weights(f) = sqrt(abs(1.0 / min(phases(f,:))));
         end
       end

@@ -22,7 +22,7 @@ function varargout = Run(varargin)
 
 % Edit the above text to modify the response to help Run
 
-% Last Modified by GUIDE v2.5 12-Apr-2016 11:50:34
+% Last Modified by GUIDE v2.5 26-Apr-2016 12:36:20
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -91,7 +91,10 @@ function Run_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   set(hObject, 'Visible', 'Off');
   
   % Set the current statuses
-  handles.cancelling = false;
+  set(handles.CancelButton, 'Enable', 'On');
+  set(handles.CancelButton, 'String', 'Cancel');
+  set(handles.IsClosing, 'Value', 0);
+  set(handles.IsRunning, 'Value', 0);
   
   % Create the amplitude and phase plots
   handles.AmplitudePlot = subplot(1, 2, 2, 'Parent', handles.PlotsPlaceholder);
@@ -120,13 +123,14 @@ function RunWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<DEFNU>
 % hObject    handle to RunWindow (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  if isfield(handles, 'preferences')
+  if isfield(handles, 'preferences') && isvalid(handles.preferences)
     currentPosition = getpixelposition(hObject);
     if ~isequal(currentPosition, handles.preferences.current.WindowPositions.run)
       handles.preferences.current.WindowPositions.run = currentPosition;
     end
   end
   
+  set(handles.IsClosing, 'Value', 1);
   CancelButton_Callback(handles.CancelButton, eventdata, handles);
 end
 
@@ -147,17 +151,24 @@ function CancelButton_Callback(hObject, eventdata, handles) %#ok<INUSL>
 % hObject    handle to CancelButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
- handles.cancelling = true;
- set(hObject, 'Enable', 'Off');
- set(hObject, 'String', 'Cancelling...');
- 
- guidata(hObject.Parent, handles);
+  if IsRunning(handles)
+    set(hObject, 'Enable', 'Off');
+    set(hObject, 'String', 'Cancelling...');
+  else
+    % The 'Cancel' button has become a 'Close' buttone, so close the window
+    CloseMe(hObject.Parent);
+  end
 end
 
 
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
+function CloseMe(myself)
+% Close and delete this window
+  delete(myself);
+end
+
 function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
 % Centers the pump laser to the probe laser
   % Calculate the positions
@@ -495,6 +506,30 @@ function [data, success] = Data(handles) %#ok<DEFNU>
 end
 
 
+function Finalize(myself, handles, success, showMessage) %#ok<DEFNU>
+% Called when the analysis is over, used to clean things up
+  % Set the statuses
+  set(handles.IsRunning, 'Value', 0);
+  set(handles.CancelButton, 'Enable', 'On');
+  set(handles.CancelButton, 'String', 'Close');
+  
+  % Show a message
+  if showMessage
+    if success
+      message = 'The data collection completed succesfully! Click ''OK'' to continue...';
+    else
+      message = 'The data collection terminated! Click ''OK'' to continue...';
+    end
+    
+    uiwait(msgbox(message, 'Run', 'modal'));
+  end
+  
+  if IsClosing(handles)
+    CloseMe(myself);
+  end
+end
+
+
 function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
 % Moves the Z stage to focus the lasers
   % Calculate the positions
@@ -632,6 +667,18 @@ end
 function isCancelling = IsCancelling(handles)
 % Checks to see if the user has requested a cancel operation
  isCancelling = strcmp(get(handles.CancelButton, 'Enable'), 'off');
+end
+
+
+function isClosing = IsClosing(handles)
+% Checks to see if the user has requested a close
+  isClosing = (get(handles.IsClosing, 'Value') == 1);
+end
+
+
+function isRunning = IsRunning(handles)
+% Checks to see if data is being analyzed
+  isRunning = (get(handles.IsRunning, 'Value') == 1);
 end
 
 

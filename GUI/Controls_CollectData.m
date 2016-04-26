@@ -103,6 +103,7 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % handles    structure with handles and user data (see GUIDATA)
   % Disable all the controls
   Controls('SetControlState', handles, 'off');
+  success = false;
   
   % Get the information for the data collection
   savePath = CheckPath(handles);
@@ -119,21 +120,25 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
               'StageController', handles.stageController);
 
     try
-      % Set up the system
-      centered = false;
+      % Run a centering scan if the user has not requested to skip it
+      centered = (handles.preferences.current.CollectData.skipCenterScan == 1);
       goodToGo = true;
       while ~centered && goodToGo
         [centered, goodToGo] = Run('Center', guidata(run));
       end
-      focused = false;
+      
+      % Run a focusing scan if the user has not requested to skip it
+      focused = (handles.preferences.current.CollectData.skipFocusScan == 1);
       while ~focused && goodToGo
         [focused, goodToGo, relativeFocusPosition] = Run('Focus', guidata(run));
-      end
-      if focused && goodToGo
-        Controls('UpdateFocusPosition', handles, relativeFocusPosition);
+        
+        % Update the controls panel with the new Z-axis position
+        if focused && goodToGo
+          Controls('UpdateFocusPosition', handles, relativeFocusPosition);
+        end
       end
 
-      % Record and save the data
+      % Perform the measurements
       if centered && focused && goodToGo
         [data, success] = Run('Data', guidata(run));
 
@@ -144,7 +149,7 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
           data.savepath = savePath;
           save(savePath, '-struct', 'data');
 
-          % Update the preferences
+          % Update the preferences (only when successfully collected)
           handles.preferences.current.CollectData.savePath = savePath;
           handles.preferences.current.CollectData.sampleInfo = sampleInfo;
           guidata(hObject,handles);
@@ -153,9 +158,10 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
     catch myError
       disp(getReport(myError));
     end
-
-    close(run);
-    delete(run);
+    
+    if isvalid(run)
+      Run('Finalize', guidata(run), success, true);
+    end
   catch myError
     disp(getReport(myError));
   end

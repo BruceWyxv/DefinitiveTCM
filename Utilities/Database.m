@@ -10,6 +10,7 @@
 %               spotSize      = <handle>.GetSpotSizeFromMagnification(<mag>)
 %               thermalProps  = <handle>.GetThermalProperties(<material>)
 %               materials     = <handle>.ListMaterials()
+%               magnifications = <handle>.ListMagnifications()
 % Inputs:       <handle>        Object handle to the database object
 %               <index>         Index of lock-in amp time constant
 %               <mag>           Magnification of the optical lens
@@ -39,13 +40,23 @@
 
 function handle = Database()
 % Assign the function handles
+  handle.Edit = @Edit;
   handle.GetIndexOfLockInAmpSensitivityConstant = @GetIndexOfLockInAmpSensitivityConstant;
   handle.GetIndexOfLockInAmpTimeConstant = @GetIndexOfLockInAmpTimeConstant;
   handle.GetLockInAmpSensitivityConstant = @GetLockInAmpSensitivityConstant;
   handle.GetLockInAmpTimeConstant = @GetLockInAmpTimeConstant;
   handle.GetSpotSizeFromMagnification = @GetSpotSizeFromMagnification;
   handle.GetThermalProperties = @GetThermalProperties;
+  handle.ListMagnifications = @ListMagnifications;
   handle.ListMaterials = @ListMaterials;
+  handle.ReloadMagnifications = @ReloadMagnifications;
+  handle.ReloadMaterials = @ReloadMaterials;
+end
+
+
+function Edit()
+% Opens up the database externally for editing
+  winopen(GetDatabaseFile());
 end
 
 
@@ -220,6 +231,16 @@ function thermalProperties = GetThermalProperties(materialName)
 end
 
 
+function materials = ListMagnifications()
+% Lists all the materials stored in the database
+  ReadMagnificationsToGlobal();
+  globalDatabase = GlobalDatabase();
+  database = globalDatabase.magnifications;
+  
+  materials = database.magnification;
+end
+
+
 function materials = ListMaterials()
 % Lists all the materials stored in the database
   ReadMaterialsToGlobal();
@@ -227,6 +248,20 @@ function materials = ListMaterials()
   database = globalDatabase.materials;
   
   materials = database.material;
+end
+
+
+function ReloadMagnifications()
+% Forces a reload of the magnification data
+  ReloadDatabase('magnifications');
+  ReadMagnificationsToGlobal();
+end
+
+
+function ReloadMaterials()
+% Forces a reload of the magnification data
+  ReloadDatabase('materials');
+  ReadMaterialsToGlobal();
 end
 
 
@@ -342,4 +377,15 @@ function uniqueLength = ReadMaterialsToGlobal()
   end
   
   uniqueLength = globalDatabase.materialsUniqueLength;
+end
+
+
+function ReloadDatabase(database)
+% Forces a reload of the magnification data
+  globalDatabase = GlobalDatabase();
+  if isfield(globalDatabase, database)
+    % Purge the existing data
+    globalDatabase = rmfield(globalDatabase, database);
+    GlobalDatabase(globalDatabase);
+  end
 end

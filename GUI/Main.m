@@ -194,10 +194,12 @@ function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
+function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to RunAnalysis (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  analysisGUI = StartAnalysis('Preferences', handles.preferences,...
+                              'Settings', handles.settings);
 end
 
 
@@ -237,9 +239,9 @@ function handles = CascadeActionPower(handles, powerOn)
   set(handles.TextOff, 'Enable', antistate);
   set(handles.TextOn, 'Enable', state);
   set(handles.ToolsAndUtilities, 'Enable', 'Off'); % Not yet implemented
+  set(handles.ToolsAndUtilities, 'Visible', 'Off'); % Not yet implemented
   set(handles.PositionSample, 'Enable', state);
   set(handles.CollectData, 'Enable', state);
-  set(handles.RunAnalysis, 'Enable', 'Off'); % Not yet implemented
 
   % Set the global power state
   handles.power = powerOn;
