@@ -69,11 +69,12 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
-% --- Executes on button press in AdvancedSettingsButton.
-function AdvancedSettingsButton_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+function AdvancedSettingsButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to AdvancedSettingsButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  settingsWindow = Controls_CollectData_Settings('Settings', handles.settings);
+  uiwait(settingsWindow);
 end
 
 

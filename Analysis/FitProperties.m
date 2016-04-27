@@ -20,28 +20,28 @@ classdef FitProperties < uint8
     function name = GetName(property)
     % Return a full-text name of a property
       switch property
-        case Properties.SubstrateConductivity
+        case FitProperties.SubstrateConductivity
           name = 'Substrate Conductivity';
           
-        case Properties.SubstrateDiffusivity
+        case FitProperties.SubstrateDiffusivity
           name = 'Substrate Diffusivity';
           
-        case Properties.SubstrateAnisoConductivity
+        case FitProperties.SubstrateAnisoConductivity
           name = 'Substrate Anisotropic Conductivity';
           
-        case Properties.SubstrateAnisoDiffusivity
+        case FitProperties.SubstrateAnisoDiffusivity
           name = 'Substrate Anisotropic Diffusivity';
           
-        case Properties.FilmConductivity
+        case FitProperties.FilmConductivity
           name = 'Film Conductivity';
           
-        case Properties.FilmDiffusivity
+        case FitProperties.FilmDiffusivity
           name = 'Film Diffusivity';
           
-        case Properties.KapitzaResistance
+        case FitProperties.KapitzaResistance
           name = 'Kapitza Resistance';
           
-        case Properties.SpotSize
+        case FitProperties.SpotSize
           name = 'Convolved Spot Size';
       end
     end

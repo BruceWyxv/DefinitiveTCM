@@ -198,8 +198,8 @@ function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to RunAnalysis (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  analysisGUI = StartAnalysis('Preferences', handles.preferences,...
-                              'Settings', handles.settings);
+  StartAnalysis('Preferences', handles.preferences,...
+                'Settings', handles.settings);
 end
 
 
@@ -279,13 +279,20 @@ function handles = ConnectHardware(handles)
                    'Stage Controller');
 
   % Set the maximum travel ranges of the sample stages
-  handles.stageController.SetLimits([handles.settings.current.StageController.xAxisID, handles.settings.current.SoftStageBoundaries.x],...
-                                    [handles.settings.current.StageController.yAxisID, handles.settings.current.SoftStageBoundaries.y],...
-                                    [handles.settings.current.StageController.zAxisID, handles.settings.current.SoftStageBoundaries.z]);
+  stageIDs = [handles.settings.current.StageController.xAxisID, ...
+              handles.settings.current.StageController.yAxisID, ...
+              handles.settings.current.StageController.zAxisID];
+  handles.stageController.SetLimits(stageIDs, [handles.settings.current.SoftStageBoundaries.x; ...
+                                               handles.settings.current.SoftStageBoundaries.y; ...
+                                               handles.settings.current.SoftStageBoundaries.z]);
   % Move the Z axis to a its lowest software boundary - the Z axis needs an
   % exception since the home seek does not move it to the middle of the
   % travel range, but to the absolute lowest point.
-  handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, 4, true);
+  handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, 4);
+  % Set the travel velocities of the stages
+  handles.stageController.SetStageSpeed(stageIDs, [handles.settings.current.StageController.xAxisSpeed, ...
+                                                   handles.settings.current.StageController.yAxisSpeed, ...
+                                                   handles.settings.current.StageController.zAxisSpeed]);
 end
 
 function handles = DisconnectHardware(handles)

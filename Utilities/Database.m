@@ -3,14 +3,17 @@
 % Date Created: 09/??/2015
 %
 % Usage:        handle        = Database()
+%               ~             = <handle>.Edit()
 %               index         = <handle>.GetIndexOfLockInAmpSensitivityConstant(<sensitivityConstant>)
 %               index         = <handle>.GetIndexOfLockInAmpTimeConstant(<timeConstant>)
 %               sensitivityConstant  = <handle>.GetLockInAmpSensitivityConstant(index)
 %               timeConstant  = <handle>.GetLockInAmpTimeConstant(index)
 %               spotSize      = <handle>.GetSpotSizeFromMagnification(<mag>)
 %               thermalProps  = <handle>.GetThermalProperties(<material>)
-%               materials     = <handle>.ListMaterials()
 %               magnifications = <handle>.ListMagnifications()
+%               materials     = <handle>.ListMaterials()
+%               ~             = <handle>.ReloadMagnifications()
+%               ~             = <handle>.ReloadMaterials()
 % Inputs:       <handle>        Object handle to the database object
 %               <index>         Index of lock-in amp time constant
 %               <mag>           Magnification of the optical lens

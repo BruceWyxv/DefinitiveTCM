@@ -347,16 +347,29 @@ function [data, success] = Data(handles) %#ok<DEFNU>
 % Performs a scan of the sample
   data = '';
   
-  % Calculate the positions
-  xAxisID = handles.settings.current.LaserController.xAxisID;
-  steps = handles.settings.current.DataScan.steps;
-  if steps <=1
-    steps = 2;
-  end
+  % Set up the scan positions
+  scanAxes = [handles.settings.current.LaserController.xAxisID, ...
+              handles.settings.current.LaserController.yAxisID];
+  steps = handles.settings.current.DataCollection.steps;
+  direction = handles.settings.current.DataCollection.scanDirection;
+  positions = zeros(2, steps);
   stepSize = handles.settings.current.DataScan.scanDistance / (steps - 1);
   halfPosition = handles.settings.current.DataScan.scanDistance / 2;
-  currentPosition = handles.laserScanController.GetAbsoluteCoordinates(xAxisID);
-  positions = (currentPosition - halfPosition):stepSize:(currentPosition + halfPosition);
+  currentPositions = handles.laserScanController.GetAbsoluteCoordinates(scanAxes);
+  distances = (-halfPosition):stepSize:(halfPosition);
+  positions(1,:) = acosd(direction) * (distances - currentPositions(1));
+  positions(2,:) = asind(direction) * (distances - currentPositions(2));
+  
+  % Correlate the directionality of the positions to the user-percieved
+  % directions
+  scanPositions = zeros(size(positions));
+  for a = 1:length(scanAxes)
+    if ReverseDirectionality(scanAxes(a), handles.settings)
+      scanPositions(a,:) = -positions(a,:);
+    else
+      scanPositions(a,:) = positions(a,:);
+    end
+  end
   
   % Create the data structures
   frequencies = handles.settings.current.DataScan.frequencies;
@@ -407,24 +420,16 @@ function [data, success] = Data(handles) %#ok<DEFNU>
 
     % Set up the plots for the next scan
     if isnan(amplitudePoints(f))
-      amplitudePoints(f) = plot(handles.AmplitudePlot, positions, amplitude(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.amplitudeMarker);
-      phasePoints(f) = plot(handles.PhasePlot, positions, phases(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.phaseMarker);
-      handles.AmplitudePlot.XLim = [(positions(1) - stepSize), (positions(end) + stepSize)];
-      handles.PhasePlot.XLim = [(positions(1) - stepSize), (positions(end) + stepSize)];
+      amplitudePoints(f) = plot(handles.AmplitudePlot, distances, amplitude(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.amplitudeMarker);
+      phasePoints(f) = plot(handles.PhasePlot, distances, phases(f,:), 'LineStyle', 'none', 'Marker', handles.settings.current.PlotSettings.phaseMarker);
+      handles.AmplitudePlot.XLim = [(distances(1) - stepSize), (distances(end) + stepSize)];
+      handles.PhasePlot.XLim = [(distances(1) - stepSize), (distances(end) + stepSize)];
     end
     legend(handles.AmplitudePlot, legendItems{1:f}, 'Location', 'South');
     legend(handles.PhasePlot, legendItems{1:f}, 'Location', 'South');
-  
-    % Correlate the directionality of the positions to the user-percieved
-    % directions
-    if ReverseDirectionality(xAxisID, handles.settings)
-      scanPositions = -positions(:);
-    else
-      scanPositions = positions(:);
-    end
-    
+
     % Account for hysteresis of the stage
-    handles.laserScanController.MinimizeHysteresis(xAxisID, scanPositions(1:2));
+    handles.laserScanController.MinimizeHysteresis(scanAxes, scanPositions(:,1:2));
     
     % Set up the equipment
     handles.pumpLaserController.SetFrequency(frequency);
@@ -440,8 +445,8 @@ function [data, success] = Data(handles) %#ok<DEFNU>
       end
 
       % Move to the scan position
-      handles.laserScanController.MoveAxis(xAxisID, scanPositions(i));
-      handles.laserScanController.WaitForAction(xAxisID);
+      handles.laserScanController.MoveAxis(scanAxes, scanPositions(:,i));
+      handles.laserScanController.WaitForAction(scanAxes);
 
       % Give the lock-in amp time to stabilize
       handles.lockInAmpController.Chill();
@@ -493,14 +498,15 @@ function [data, success] = Data(handles) %#ok<DEFNU>
   hold(handles.PhasePlot, 'off');
   
   % Move the stages back to their original positions
-  handles.laserScanController.MoveAxis(xAxisID, currentPosition);
+  handles.laserScanController.MoveAxis(scanAxes, currentPositions);
   
   if success
     % Set the data
     data.frequencies = frequencies;
     data.timeConstant = timeConstant;
-    data.positions = positions;
+    data.positions = distances;
     data.amplitudes = amplitude;
+    data.direction = direction;
     data.phases = phases;
   end
 end

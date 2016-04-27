@@ -9,8 +9,9 @@ function StartDefinitiveTCM
 
   % Open the main GUI
   addpath('GUI');
-  mainWindow = Main;
+  mainWindow = Main();
   uiwait(mainWindow);
+  rmpath('GUI');
 
   % Done, change back to the original path
   cd(oldPath)

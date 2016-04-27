@@ -41,11 +41,11 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
-    function SetLimits(myself, xLimits, yLimits, zLimits)
+    function SetLimits(myself, axes, limits)
     % Set the travel limits for the stages
-      myself.SetStageLimits(xLimits(1), xLimits(2:3));
-      myself.SetStageLimits(yLimits(1), yLimits(2:3));
-      myself.SetStageLimits(zLimits(1), zLimits(2:3));
+      myself.SetStageLimits(axes(1), limits(1,:));
+      myself.SetStageLimits(axes(2), limits(2,:));
+      myself.SetStageLimits(axes(3), limits(3,:));
     end
     
     function Beep(myself, varargin)
@@ -68,6 +68,11 @@ classdef ESP300_Control < GPIB_Interface
     function coordinates = GetAbsoluteCoordinates(myself, axis)
     % Get the absolute coordinates of the requested axis
       coordinates = str2double(myself.Query(axis, 'PA'));
+    end
+    
+    function speed = GetStageSpeed(myself, axis)
+    % Get the current speed of the requested axis
+      speed = str2double(myself.Query(axis, 'VA'));
     end
     
     function valid = IsValidAxis(myself, axis)
@@ -112,6 +117,11 @@ classdef ESP300_Control < GPIB_Interface
       if nargin == 4 && progressBar
         myself.WaitForAction(axis, 'FinalPosition', position, 'Message', 'Please wait while the stage is moving...');
       end
+    end
+    
+    function SetStageSpeed(myself, axis, speed)
+    % Set the current speed of the requested axis
+      myself.Command(axis, 'VA', speed);
     end
     
     function SetToZero(myself, axis)

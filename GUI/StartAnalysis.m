@@ -22,7 +22,7 @@ function varargout = StartAnalysis(varargin)
 
 % Edit the above text to modify the response to help StartAnalysis
 
-% Last Modified by GUIDE v2.5 26-Apr-2016 17:30:26
+% Last Modified by GUIDE v2.5 27-Apr-2016 11:13:29
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -45,7 +45,6 @@ function varargout = StartAnalysis(varargin)
 end
 
 
-% --- Executes just before StartAnalysis is made visible.
 function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
 % This function has no output args, see OutputFcn.
 % hObject    handle to figure
@@ -86,9 +85,12 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
   FileEdit_Callback(handles.FileEdit, [], handles);
   % Film thickness
   handles.filmThickness = handles.preferences.current.Analysis.filmThickness;
-  set(handles.FilmThicknessEdit, 'String', sprintf('%g', handles.filmThickness));
+  set(handles.FilmThicknessEdit, 'String', Num2Engr(handles.filmThickness));
   % Set the film material to gold
   handles.filmMaterial = 'filmgold';
+  % Film thickness
+  handles.kapitzaResistances = handles.preferences.current.Analysis.kapitzaResistance;
+  set(handles.KapitzaResistanceEdit, 'String', Num2Engr(handles.kapitzaResistances));
   % Model
   handles.models = get(handles.ModelPopup, 'String');
   handles.model = handles.models{handles.preferences.current.Analysis.model};
@@ -98,10 +100,12 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
   [~, handles.substrateName, ~] = fileparts(handles.file);
   % Amplitude weight
   handles.amplitudeWeight = handles.preferences.current.Analysis.amplitudeWeight;
-  set(handles.AmplitudeWeightEdit, 'String', sprintf('%g', handles.amplitudeWeight));
+  set(handles.AmplitudeWeightEdit, 'String', Num2Engr(handles.amplitudeWeight));
   % Magnification
   handles.magnification = handles.preferences.current.Analysis.magnification;
-  handles = Refresh(handles);
+  
+  % Refresh the magnification and materials popups
+  handles = RefreshPopups(handles);
   
   % Store the tooltip initial states
   handles.tooltips.fileEdit = get(handles.FileEdit, 'TooltipString');
@@ -114,7 +118,6 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
 end
 
 
-% --- Outputs from this function are returned to the command line.
 function varargout = StartAnalysis_OutputFcn(hObject, eventdata, handles) %#ok<INUSL>
 % varargout  cell array for returning output args (see VARARGOUT);
 % hObject    handle to figure
@@ -150,7 +153,6 @@ function FileEdit_Callback(hObject, eventdata, handles) %#ok<INUSL>
 end
 
 
-% --- Executes during object creation, after setting all properties.
 function FileEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to FileEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -164,7 +166,6 @@ function FileEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 end
 
 
-% --- Executes on button press in BrowseButton.
 function BrowseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to BrowseButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -184,7 +185,6 @@ function BrowseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-% --- Executes on selection change in ModelPopup.
 function ModelPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to ModelPopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -193,8 +193,10 @@ function ModelPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % Hints: contents = cellstr(get(hObject,'String')) returns ModelPopup contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from ModelPopup
   contents = cellstr(get(hObject, 'String'));
-  selection = contents{get(hObject, 'Value')};
+  index = get(hObject, 'Value');
+  selection = contents{index};
   handles.model = selection;
+  handles.preferences.current.Analysis.model = index;
   substrate = 'Off';
   
   switch lower(selection)
@@ -209,7 +211,6 @@ function ModelPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-% --- Executes during object creation, after setting all properties.
 function ModelPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to ModelPopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -223,7 +224,6 @@ function ModelPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 end
 
 
-% --- Executes on selection change in SubstratePopup.
 function SubstratePopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to SubstratePopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -238,7 +238,6 @@ function SubstratePopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-% --- Executes during object creation, after setting all properties.
 function SubstratePopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to SubstratePopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -262,8 +261,9 @@ function AmplitudeWeightEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
   %        str2double(get(hObject,'String')) returns contents of AmplitudeWeightEdit as a double
   entry = get(hObject, 'String');
   value = sscanf(entry, '%g', 1);
-  clean = sprintf('%g', value);
+  clean = Num2Engr(value);
   set(hObject, 'String', clean);
+  handles.preferences.current.Analysis.amplitudeWeight = value;
   
   % Set the data
   handles.amplitudeWeight = value;
@@ -271,7 +271,6 @@ function AmplitudeWeightEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
 end
 
 
-% --- Executes during object creation, after setting all properties.
 function AmplitudeWeightEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to AmplitudeWeightEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -285,7 +284,6 @@ function AmplitudeWeightEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,D
 end
 
 
-% --- Executes on selection change in MagnificationPopup.
 function MagnificationPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to MagnificationPopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -294,12 +292,12 @@ function MagnificationPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEF
   % Hints: contents = cellstr(get(hObject,'String')) returns MagnificationPopup contents as cell array
   %        contents{get(hObject,'Value')} returns selected item from MagnificationPopup'
   handles.magnification = handles.magnifications(get(hObject, 'Value'));
+  handles.preferences.current.Analysis.magnification = handles.magnification;
   
   guidata(hObject.Parent, handles);
 end
 
 
-% --- Executes during object creation, after setting all properties.
 function MagnificationPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to MagnificationPopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -313,18 +311,16 @@ function MagnificationPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DE
 end
 
 
-% --- Executes on button press in RefreshDatabaseButton.
 function RefreshDatabaseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to RefreshDatabaseButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
   handles = LoadDatabase(handles, true);
-  handles = Refresh(handles);
+  handles = RefreshPopups(handles);
   guidata(hObject.Parent, handles);
 end
 
 
-% --- Executes on button press in EditDatabaseButton.
 function EditDatabaseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to EditDatabaseButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -333,7 +329,6 @@ function EditDatabaseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEF
 end
 
 
-% --- Executes on button press in StartAnalysisButton.
 function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to StartAnalysisButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -343,15 +338,77 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
   set(elements, 'Enable', 'Off');
   
   % Perform an analysis
-  results = FitTCMData(handles.file,...
-                       handles.filmMaterial,...
-                       handles.filmThickness,...
+  results = FitTCMData(handles.file, ...
+                       handles.filmMaterial, ...
+                       handles.filmThickness, ...
                        'AnalysisModel', handles.model,...
-                       'AmplitudeWeight', handles.amplitudeWeight,...
-                       'Magnification', handles.magnification,...
-                       'Preferences', handles.preferences,...
-                       'Settings', handles.settings,...
+                       'AmplitudeWeight', handles.amplitudeWeight, ...
+                       'Magnification', handles.magnification, ...
+                       'Preferences', handles.preferences, ...
+                       'Settings', handles.settings, ...
                        'SubstrateName', handles.substrateName);
+  
+  % Display the data and prompt for save
+  fittedValues = results.allProperties;
+  mask = results.fittedPropertiesMask;
+  finalChiSquared = results.chiSquared;
+  properties = FitProperties.GetArrayOfProperties();
+  numberOfProperties = length(properties);
+  propertyNames = cell(1, numberOfProperties);
+  values = Num2Engr(fittedValues);
+  for p = 1:length(properties)
+    propertyNames{p} = FitProperties.GetName(properties(p));
+  end
+  maskMark = '*';
+  message = cell(1, numberOfProperties + 5);
+  message{1} = sprintf('Fitting results:   (%sconstant value, not fitted)', maskMark);
+  message{3} = sprintf('Goodness-of-Fit:   %s', Num2Engr(finalChiSquared));
+  message{numberOfProperties + 5} = 'Would you like to save the data?';
+  for p = 1:length(properties)
+    if mask(p)
+      maskIndicator = '';
+    else
+      maskIndicator = maskMark;
+    end
+    message{p + 3} = sprintf('%s%s:   %s', maskIndicator, propertyNames{p}, values{p});
+  end
+  
+  % Ask the user if they want to save
+  saveFile = true;
+  excelExtension = 'xlsx';
+  [directory, fileName, ~] = fileparts(handles.file);
+  excelFile = fullfile(directory, strcat(fileName, '.', excelExtension));
+  choice = questdlg(message, 'Save data...', 'No', 'Yes', 'Yes');
+  switch choice
+    case 'Yes'
+      overwrite = false;
+      while exist(excelFile, 'file') && ~overwrite && ~strcmp(choice, 'Cancel');
+        message = sprintf('File ''%s'' already exists.\n\nWhat would you like to do?', excelFile);
+        choice = questdlg(message, 'File exists!', 'Cancel', 'Overwrite', 'Change Name', 'Overwrite');
+        switch choice
+          case 'Cancel'
+            saveFile = false;
+            
+          case 'Change Name'
+            filters = {strcat('*.',  excelExtension), 'Excel Spreadsheet';...
+                       '*.*', 'All Files'};
+            [file, directory, ~] = uigetfile(filters, 'Save Data File...', excelFile);
+            excelFile = fullfile(directory, file);
+            
+          case 'Overwrite'
+            overwrite = true;
+        end
+      end
+      
+    case 'No'
+      saveFile = false;
+  end
+  
+  if saveFile
+    data = [propertyNames; values];
+    sheet = 'Data';
+    xlswrite(excelFile, data, sheet);
+  end
   
   % Enable all controls
   set(elements, 'Enable', 'On')
@@ -369,8 +426,9 @@ function FilmThicknessEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFN
   % Sanitize the contents
   entry = get(hObject, 'String');
   value = sscanf(entry, '%g', 1);
-  clean = sprintf('%g', value);
+  clean = Num2Engr(value);
   set(hObject, 'String', clean);
+  handles.preferences.current.Analysis.filmThickness = value;
   
   % Set the data
   handles.filmThickness = value;
@@ -378,7 +436,6 @@ function FilmThicknessEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFN
 end
 
 
-% --- Executes during object creation, after setting all properties.
 function FilmThicknessEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to FilmThicknessEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -392,7 +449,6 @@ function FilmThicknessEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEF
 end
 
 
-% --- Executes on selection change in FilmMaterialPopup.
 function FilmMaterialPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to FilmMaterialPopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -407,13 +463,46 @@ function FilmMaterialPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFN
 end
 
 
-% --- Executes during object creation, after setting all properties.
 function FilmMaterialPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to FilmMaterialPopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
   % Hint: popupmenu controls usually have a white background on Windows.
+  %       See ISPC and COMPUTER.
+  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+      set(hObject,'BackgroundColor','white');
+  end
+end
+
+
+
+function KapitzaResistanceEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to KapitzaResistanceEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+  % Hints: get(hObject,'String') returns contents of KapitzaResistanceEdit as text
+  %        str2double(get(hObject,'String')) returns contents of KapitzaResistanceEdit as a double
+  entry = get(hObject, 'String');
+  value = sscanf(entry, '%g', 1);
+  clean = Num2Engr(value);
+  set(hObject, 'String', clean);
+  handles.preferences.current.Analysis.kapitzaResistance = value;
+  
+  % Set the data
+  handles.kapitzaResistance = value;
+  guidata(hObject.Parent, handles);
+end
+
+
+% --- Executes during object creation, after setting all properties.
+function KapitzaResistanceEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to KapitzaResistanceEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+  % Hint: edit controls usually have a white background on Windows.
   %       See ISPC and COMPUTER.
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
@@ -434,28 +523,43 @@ function handles = LoadDatabase(handles, forceRefresh)
   end
   
   handles.materials = handles.database.ListMaterials();
+  handles.magnifications = handles.database.ListMagnifications();
 end
 
 
-function handles = Refresh(handles)
+function handles = RefreshPopups(handles)
 % Refreshes the contents of the popup controls
-  % Film material
-  set(handles.FilmMaterialPopup, 'String', handles.materials);
-  index = find(strcmp(handles.materials, handles.filmMaterial), 1);
-  set(handles.FilmMaterialPopup, 'Value', index);
+  % Materials
+  if isempty(handles.materials)
+    uiwait(msgbox('No materials found in database. Please edit the database and add a least one.', 'Error', 'error', 'modal'));
+  else
+    % Film material
+    set(handles.FilmMaterialPopup, 'String', handles.materials);
+    index = find(strcmp(handles.materials, handles.filmMaterial), 1);
+    if isempty(index)
+      index = 1;
+    end
+    set(handles.FilmMaterialPopup, 'Value', index);
   
-  % Substrate material
-  set(handles.SubstratePopup, 'String', handles.materials);
-  index = find(strcmp(handles.materials, handles.substrateName), 1);
-  if isempty(index)
-    handles.substrateName = 'pyrex';
+    % Substrate material
+    set(handles.SubstratePopup, 'String', handles.materials);
     index = find(strcmp(handles.materials, handles.substrateName), 1);
+    if isempty(index)
+      handles.substrateName = 'pyrex';
+      index = find(strcmp(handles.materials, handles.substrateName), 1);
+    end
+    set(handles.SubstratePopup, 'Value', index);
   end
-  set(handles.SubstratePopup, 'Value', index);
   
   % Magnifications
-  handles.magnifications = handles.database.ListMagnifications();
-  set(handles.MagnificationPopup, 'String', arrayfun(@num2str, handles.magnifications, 'unif', 0));
-  index = find(handles.magnifications == handles.magnifications, 1);
-  set(handles.MagnificationPopup, 'Value', index);
+  if isempty(handles.magnifications)
+    uiwait(msgbox('No magnifications found in database. Please edit the database and add a least one.', 'Error', 'error', 'modal'));
+  else
+    set(handles.MagnificationPopup, 'String', arrayfun(@num2str, handles.magnifications, 'unif', 0));
+    index = find(handles.magnifications == handles.magnifications, 1);
+    if isempty(index)
+      index = 1;
+    end
+    set(handles.MagnificationPopup, 'Value', index);
+  end
 end

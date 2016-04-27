@@ -143,7 +143,16 @@ classdef ConfigurationFile < handle
       else
         % Check for a numeric
         if isnumeric(value)
-          value = num2str(value);
+          if length(value) == 1
+            value = Num2Engr(value);
+          else
+            strings = Num2Engr(value);
+            value = '';
+            for i = 1:length(strings);
+              value = [value, ' ', strings{i}]; %#ok<AGROW>
+            end
+            value = strtrim(value);
+          end
         else
           % Perform some final string modifications
           % Convert the ASCII characters to a literal equivalent
