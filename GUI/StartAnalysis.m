@@ -82,7 +82,6 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
   % Initialize the controls and handle values
   % File
   set(handles.FileEdit, 'String', handles.file);
-  FileEdit_Callback(handles.FileEdit, [], handles);
   % Film thickness
   handles.filmThickness = handles.preferences.current.Analysis.filmThickness;
   set(handles.FilmThicknessEdit, 'String', Num2Engr(handles.filmThickness));
@@ -109,6 +108,9 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
   
   % Store the tooltip initial states
   handles.tooltips.fileEdit = get(handles.FileEdit, 'TooltipString');
+  
+  % Parse the current file name
+  FileEdit_Callback(handles.FileEdit, [], handles);
 
   % Update handles structure
   guidata(hObject, handles);
@@ -352,6 +354,7 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
   fittedValues = results.allProperties;
   mask = results.fittedPropertiesMask;
   finalChiSquared = results.chiSquared;
+  standardError = results.standardError();
   properties = FitProperties.GetArrayOfProperties();
   numberOfProperties = length(properties);
   propertyNames = cell(1, numberOfProperties);
@@ -360,17 +363,24 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
     propertyNames{p} = FitProperties.GetName(properties(p));
   end
   maskMark = '*';
-  message = cell(1, numberOfProperties + 5);
+  message = cell(1, numberOfProperties + 6);
   message{1} = sprintf('Fitting results:   (%sconstant value, not fitted)', maskMark);
   message{3} = sprintf('Goodness-of-Fit:   %s', Num2Engr(finalChiSquared));
-  message{numberOfProperties + 5} = 'Would you like to save the data?';
+  cellOfErrors = Num2Engr(standardError);
+  standardErrorString = '';
+  for i = 1:length(cellOfErrors);
+    standardErrorString = [standardErrorString, ' ', cellOfErrors{i}]; %#ok<AGROW>
+  end
+  standardErrorString = strtrim(standardErrorString);
+  message{4} = sprintf('Standard Error:   ±%s', standardErrorString);
+  message{numberOfProperties + 6} = 'Would you like to save the data?';
   for p = 1:length(properties)
     if mask(p)
       maskIndicator = '';
     else
       maskIndicator = maskMark;
     end
-    message{p + 3} = sprintf('%s%s:   %s', maskIndicator, propertyNames{p}, values{p});
+    message{p + 4} = sprintf('%s%s:   %s', maskIndicator, propertyNames{p}, values{p});
   end
   
   % Ask the user if they want to save
@@ -378,13 +388,13 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
   excelExtension = 'xlsx';
   [directory, fileName, ~] = fileparts(handles.file);
   excelFile = fullfile(directory, strcat(fileName, '.', excelExtension));
-  choice = questdlg(message, 'Save data...', 'No', 'Yes', 'Yes');
+  choice = questdlg(message, 'Save data...', 'Yes', 'No', 'Yes');
   switch choice
     case 'Yes'
       overwrite = false;
       while exist(excelFile, 'file') && ~overwrite && ~strcmp(choice, 'Cancel');
         message = sprintf('File ''%s'' already exists.\n\nWhat would you like to do?', excelFile);
-        choice = questdlg(message, 'File exists!', 'Cancel', 'Overwrite', 'Change Name', 'Overwrite');
+        choice = questdlg(message, 'File exists!', 'Overwrite', 'Cancel', 'Change Name', 'Overwrite');
         switch choice
           case 'Cancel'
             saveFile = false;

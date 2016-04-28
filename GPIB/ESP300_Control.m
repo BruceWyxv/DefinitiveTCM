@@ -75,19 +75,22 @@ classdef ESP300_Control < GPIB_Interface
       speed = str2double(myself.Query(axis, 'VA'));
     end
     
-    function valid = IsValidAxis(myself, axis)
-    % Checks the value of 'axis' and determines if it is a valid axis
-    % argument
-      if ~isnumeric(axis)
-        warning('ESP300_Control:InvalidAxis', 'Invalid axis of type "%s"\nAn integer is required. Command ignored.\n', class(axis));
-        valid = false;
-      elseif axis < 1 || axis > myself.maxStages
-        warning('ESP300_Control:InvalidAxis', 'Invalid axis identifier "%i"\nMust be between 1 and %i. Command ignored.\n', axis, myself.maxStages);
-        valid = false;
-      elseif ~myself.activeStages(axis)
-        valid = false;
-      else
-        valid = true;
+    function valid = IsValidAxis(myself, axes)
+    % Checks the value(s) of 'axes' and determines if it is valid
+      valid = true;
+      for a = 1:length(axes)
+        axis = axes(a);
+        if ~isnumeric(axis)
+          warning('ESP300_Control:InvalidAxis', 'Invalid axis of type "%s"\nAn integer is required. Command ignored.\n', class(axis));
+          valid = false;
+        elseif axis < 1 || axis > myself.maxStages
+          warning('ESP300_Control:InvalidAxis', 'Invalid axis identifier "%i"\nMust be between 1 and %i. Command ignored.\n', axis, myself.maxStages);
+          valid = false;
+        elseif ~myself.activeStages(axis)
+          valid = false;
+        else
+          valid = valid & true;
+        end
       end
     end
     
@@ -99,9 +102,14 @@ classdef ESP300_Control < GPIB_Interface
         return;
       end
       
-      hysteresisPosition = firstTwoPositions(1) + 4 * (firstTwoPositions(1) - firstTwoPositions(2));
-      myself.MoveAxis(axis, hysteresisPosition);
-      myself.WaitForAction(axis);
+      % Only minimize hysteresis if the axis is actually moving
+      for a = 1:length(axis)
+        if ~isFloatEqual(firstTwoPositions(a,1), firstTwoPositions(a,2))
+          hysteresisPosition = firstTwoPositions(a,1) + 4 * (firstTwoPositions(a,1) - firstTwoPositions(a,2));
+          myself.MoveAxis(axis(a), hysteresisPosition);
+          myself.WaitForAction(axis(a));
+        end
+      end
     end
     
     function MoveAxis(myself, axis, position, progressBar)

@@ -155,7 +155,7 @@ function CancelButton_Callback(hObject, eventdata, handles) %#ok<INUSL>
     set(hObject, 'Enable', 'Off');
     set(hObject, 'String', 'Cancelling...');
   else
-    % The 'Cancel' button has become a 'Close' buttone, so close the window
+    % The 'Cancel' button has become a 'Close' button, so close the window
     CloseMe(hObject.Parent);
   end
 end
@@ -171,6 +171,8 @@ end
 
 function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
 % Centers the pump laser to the probe laser
+  set(handles.IsRunning, 'Value', 1);
+  
   % Calculate the positions
   scanAxes = [handles.settings.current.LaserController.xAxisID, handles.settings.current.LaserController.yAxisID];
   steps = handles.settings.current.CenterScan.steps;
@@ -340,25 +342,28 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
     % Move the stages back to their original positions
     handles.laserScanController.MoveAxis(scanAxes, currentPosition);
   end
+  
+  set(handles.IsRunning, 'Value', 0);
 end
 
 
 function [data, success] = Data(handles) %#ok<DEFNU>
 % Performs a scan of the sample
   data = '';
+  set(handles.IsRunning, 'Value', 1);
   
   % Set up the scan positions
   scanAxes = [handles.settings.current.LaserController.xAxisID, ...
               handles.settings.current.LaserController.yAxisID];
-  steps = handles.settings.current.DataCollection.steps;
-  direction = handles.settings.current.DataCollection.scanDirection;
-  positions = zeros(2, steps);
+  steps = handles.settings.current.DataScan.steps;
+  direction = handles.settings.current.DataScan.scanDirection;
   stepSize = handles.settings.current.DataScan.scanDistance / (steps - 1);
   halfPosition = handles.settings.current.DataScan.scanDistance / 2;
   currentPositions = handles.laserScanController.GetAbsoluteCoordinates(scanAxes);
-  distances = (-halfPosition):stepSize:(halfPosition);
-  positions(1,:) = acosd(direction) * (distances - currentPositions(1));
-  positions(2,:) = asind(direction) * (distances - currentPositions(2));
+  distances = -halfPosition:stepSize:halfPosition;
+  positions = zeros(2, steps);
+  positions(1,:) = (cosd(direction) * distances) - currentPositions(1);
+  positions(2,:) = (sind(direction) * distances) - currentPositions(2);
   
   % Correlate the directionality of the positions to the user-percieved
   % directions
@@ -395,10 +400,9 @@ function [data, success] = Data(handles) %#ok<DEFNU>
   % Peform the scan
   f = 1;
   success = true;
-  while f <= numberOfFrequencies % Don't use a for loop - we might need to repeat a frequency
-    % Scan over both the x and the y axis
+  while success == true && f <= numberOfFrequencies  % Don't use a for loop - we might need to repeat a frequency
     % Check to see if the user has pressed the cancel button
-    if IsCancelling(handles) || success == false
+    if IsCancelling(handles)
       success = false;
       break;
     end
@@ -437,7 +441,7 @@ function [data, success] = Data(handles) %#ok<DEFNU>
     handles.lockInAmpController.Chill();
     
     for i = 1:steps
-      set(handles.ProgressText, 'String', sprintf('%s - Postion: %i of %i', baseProgressString, i, steps));
+      set(handles.ProgressText, 'String', sprintf('%s - Position: %i of %i', baseProgressString, i, steps));
       % Check to see if the user has pressed the cancel button
       if IsCancelling(handles)
         success = false;
@@ -484,7 +488,6 @@ function [data, success] = Data(handles) %#ok<DEFNU>
           
         case 'Abort'
           success = false;
-          return;
       end
     end
     
@@ -509,6 +512,8 @@ function [data, success] = Data(handles) %#ok<DEFNU>
     data.direction = direction;
     data.phases = phases;
   end
+  
+  set(handles.IsRunning, 'Value', 0);
 end
 
 
@@ -538,6 +543,8 @@ end
 
 function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
 % Moves the Z stage to focus the lasers
+  set(handles.IsRunning, 'Value', 1);
+  
   % Calculate the positions
   zAxisID = handles.settings.current.StageController.zAxisID;
   steps = handles.settings.current.FocusScan.steps;
@@ -667,6 +674,8 @@ function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
   % Prepare for the next process to run
   hold(handles.AmplitudePlot, 'off');
   hold(handles.PhasePlot, 'off');
+  
+  set(handles.IsRunning, 'Value', 0);
 end
 
 

@@ -144,7 +144,7 @@ function CancelButton_Callback(hObject, eventdata, handles) %#ok<INUSL>
     set(hObject, 'Enable', 'Off');
     set(hObject, 'String', 'Cancelling...');
   else
-    % The 'Cancel' button has become a 'Close' buttone, so close the window
+    % The 'Cancel' button has become a 'Close' button, so close the window
     CloseMe(hObject.Parent);
   end
 end

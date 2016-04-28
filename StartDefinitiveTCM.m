@@ -4,19 +4,19 @@ function StartDefinitiveTCM
   mainPath = fileparts(mfilename('fullpath'));
   oldPath = cd(mainPath);
   
-  % Create the managers
-  ConfigurationFileManager.GetInstance();
+    % Create the managers
+    ConfigurationFileManager.GetInstance();
 
-  % Open the main GUI
-  addpath('GUI');
-  mainWindow = Main();
-  uiwait(mainWindow);
-  rmpath('GUI');
+    % Open the main GUI
+    addpath('GUI');
+      mainWindow = Main();
+      uiwait(mainWindow);
+    rmpath('GUI');
+
+    % Delete the managers
+    ConfigurationFileManager.GetInstance().delete();
 
   % Done, change back to the original path
   cd(oldPath)
-  
-  % Delete the managers
-  ConfigurationFileManager.GetInstance().delete();
 end
 

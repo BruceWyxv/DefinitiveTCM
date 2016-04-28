@@ -122,14 +122,14 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
     try
       % Run a centering scan if the user has not requested to skip it
-      centered = (handles.preferences.current.CollectData.skipCenterScan == 1);
+      centered = (handles.settings.current.DataScan.skipCenterScan == 1);
       goodToGo = true;
       while ~centered && goodToGo
         [centered, goodToGo] = Run('Center', guidata(run));
       end
       
       % Run a focusing scan if the user has not requested to skip it
-      focused = (handles.preferences.current.CollectData.skipFocusScan == 1);
+      focused = (handles.settings.current.DataScan.skipFocusScan == 1);
       while ~focused && goodToGo
         [focused, goodToGo, relativeFocusPosition] = Run('Focus', guidata(run));
         
@@ -161,7 +161,7 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
     end
     
     if isvalid(run)
-      Run('Finalize', guidata(run), success, true);
+      Run('Finalize', run, guidata(run), success, true);
     end
   catch myError
     disp(getReport(myError));

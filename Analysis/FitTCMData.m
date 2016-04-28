@@ -121,7 +121,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   
   % Check for the default amplitude weight
   if amplitudeWeight == -1
-    amplitudeWeight = settings.current.Analysis.amplitudeWeight;
+    amplitudeWeight = preferences.current.Analysis.amplitudeWeight;
   end
   % Ensure that we always have a non-negative value
   if amplitudeWeight < 0
@@ -233,6 +233,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   results.fittedPropertiesMask = fittedPropertiesMask;
   results.chiSquared = chiSquared;
   results.fminsearchOutput = fminsearchOutput;
+  results.standardError = analyzer.GetStandardError();
   
   % Clean up
   if preferencesProvided == false && settingsProvided == false

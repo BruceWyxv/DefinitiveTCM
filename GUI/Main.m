@@ -198,8 +198,8 @@ function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to RunAnalysis (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  StartAnalysis('Preferences', handles.preferences,...
-                'Settings', handles.settings);
+  handles.analysisGUI = StartAnalysis('Preferences', handles.preferences,...
+                                      'Settings', handles.settings);
 end
 
 
