@@ -1,22 +1,29 @@
 function StartDefinitiveTCM
 % Opens the DefinitiveTCM GUI
-  % Get the path of this function and change the path accordingly
-  mainPath = fileparts(mfilename('fullpath'));
-  oldPath = cd(mainPath);
+  % Get the path of this function and change the directory accordingly
+  programDirectory = fileparts(mfilename('fullpath'));
+  originalDirectory = cd(programDirectory);
   
     % Create the managers
     ConfigurationFileManager.GetInstance();
 
-    % Open the main GUI
-    addpath('GUI');
+    % Ensure that the GUI elements are in path
+    oldPath = addpath('GUI');
+    
+      % Configure the look and feel of the GUI
+      LookAndFeel();
+      
+      % Start the program and wait until it completes
       mainWindow = Main();
       uiwait(mainWindow);
-    rmpath('GUI');
+    
+    % Reset the original path
+    path(oldPath);
 
     % Delete the managers
     ConfigurationFileManager.GetInstance().delete();
 
-  % Done, change back to the original path
-  cd(oldPath)
+  % Done, change back to the original directory
+  cd(originalDirectory)
 end
 

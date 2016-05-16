@@ -187,11 +187,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
     case 'fast'
       fitMask(FitProperties.SubstrateConductivity) = true;
       fitMask(FitProperties.SubstrateDiffusivity) = true;
-      % Cull the data
-      allowedFrequencies = data.frequencies <= 50e3;
-      data.frequencies = data.frequencies(allowedFrequencies);
-      data.amplitudes = data.amplitudes(allowedFrequencies,:);
-      data.phases = data.phases(allowedFrequencies,:);
+      allowedFrequencies = data.frequencies <= preferences.current.Analysis.maximumFrequencyFast;
       
     case 'film'
       if ~substrateFound
@@ -200,11 +196,13 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
       fitMask(FitProperties.FilmConductivity) = true;
       fitMask(FitProperties.FilmDiffusivity) = true;
       fitMask(FitProperties.KapitzaResistance) = true;
+      allowedFrequencies = data.frequencies <= preferences.current.Analysis.maximumFrequencyFilm;
       
     case 'full'
       fitMask(FitProperties.SubstrateConductivity) = true;
       fitMask(FitProperties.SubstrateDiffusivity) = true;
       fitMask(FitProperties.KapitzaResistance) = true;
+      allowedFrequencies = data.frequencies <= preferences.current.Analysis.maximumFrequencyFull;
 
       % Are we running an anisotropic fit?
       if data.anisotropic
@@ -220,6 +218,11 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
       error('The analysis model ''%s'' does not exists.', analysisModel);
   end
   
+  % Cull the data
+  data.frequencies = data.frequencies(allowedFrequencies);
+  data.amplitudes = data.amplitudes(allowedFrequencies,:);
+  data.phases = data.phases(allowedFrequencies,:);
+
   % Set up and run the analysis
   analyzer = ThermalWaveNumbers(data,...
                                 filmThickness,...

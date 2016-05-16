@@ -22,7 +22,7 @@ function varargout = StartAnalysis(varargin)
 
 % Edit the above text to modify the response to help StartAnalysis
 
-% Last Modified by GUIDE v2.5 27-Apr-2016 11:13:29
+% Last Modified by GUIDE v2.5 16-May-2016 11:29:45
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -131,6 +131,74 @@ function varargout = StartAnalysis_OutputFcn(hObject, eventdata, handles) %#ok<I
 end
 
 
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+function AdvancedButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to AdvancedButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  settings = StartAnalysis_Settings('Settings', handles.settings);
+  uiwait(settings);
+end
+
+
+function AmplitudeWeightEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to AmplitudeWeightEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+  % Hints: get(hObject,'String') returns contents of AmplitudeWeightEdit as text
+  %        str2double(get(hObject,'String')) returns contents of AmplitudeWeightEdit as a double
+  [clean, value] = CleanNumberString(get(hObject, 'String'));
+  set(hObject, 'String', clean);
+  handles.preferences.current.Analysis.amplitudeWeight = value;
+  
+  % Set the data
+  handles.amplitudeWeight = value;
+  guidata(hObject.Parent, handles);
+end
+
+
+function AmplitudeWeightEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to AmplitudeWeightEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+  % Hint: edit controls usually have a white background on Windows.
+  %       See ISPC and COMPUTER.
+  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+      set(hObject,'BackgroundColor','white');
+  end
+end
+
+
+function BrowseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to BrowseButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  filters = {'*.mat', 'Data Files';...
+             '*.*', 'All Files'};
+  [file, directory, ~] = uigetfile(filters, 'Select Data File...', handles.file);
+  file = fullfile(directory, file);
+  
+  if file ~= 0
+    handles.file = file;
+    set(handles.FileEdit, 'String', file);
+    FileEdit_Callback(handles.FileEdit, [], handles);
+    
+    guidata(hObject.Parent, handles);
+  end
+end
+
+
+function EditDatabaseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to EditDatabaseButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  handles.database.Edit();
+end
+
 
 function FileEdit_Callback(hObject, eventdata, handles) %#ok<INUSL>
 % hObject    handle to FileEdit (see GCBO)
@@ -168,80 +236,22 @@ function FileEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 end
 
 
-function BrowseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to BrowseButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  filters = {'*.mat', 'Data Files';...
-             '*.*', 'All Files'};
-  [file, directory, ~] = uigetfile(filters, 'Select Data File...', handles.file);
-  file = fullfile(directory, file);
-  
-  if file ~= 0
-    handles.file = file;
-    set(handles.FileEdit, 'String', file);
-    FileEdit_Callback(handles.FileEdit, [], handles);
-    
-    guidata(hObject.Parent, handles);
-  end
-end
-
-
-function ModelPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to ModelPopup (see GCBO)
+function FilmMaterialPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to FilmMaterialPopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hints: contents = cellstr(get(hObject,'String')) returns ModelPopup contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from ModelPopup
-  contents = cellstr(get(hObject, 'String'));
-  index = get(hObject, 'Value');
-  selection = contents{index};
-  handles.model = selection;
-  handles.preferences.current.Analysis.model = index;
-  substrate = 'Off';
-  
-  switch lower(selection)
-    case 'film'
-      substrate = 'On';
-  end
-  
-  set(handles.SubstratePopup, 'Visible', substrate);
-  set(handles.SubstrateText, 'Visible', substrate);
+  % Hints: contents = cellstr(get(hObject,'String')) returns FilmMaterialPopup contents as cell array
+  %        contents{get(hObject,'Value')} returns selected item from FilmMaterialPopup
+  contents = cellstr(get(hObject,'String'));
+  handles.filmMaterial = contents{get(hObject,'Value')};
   
   guidata(hObject.Parent, handles);
 end
 
 
-function ModelPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to ModelPopup (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-  % Hint: popupmenu controls usually have a white background on Windows.
-  %       See ISPC and COMPUTER.
-  if ispc && isequal(get(hObject, 'BackgroundColor'), get(0, 'defaultUicontrolBackgroundColor'))
-      set(hObject, 'BackgroundColor', 'white');
-  end
-end
-
-
-function SubstratePopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to SubstratePopup (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-  % Hints: contents = cellstr(get(hObject,'String')) returns SubstratePopup contents as cell array
-  %        contents{get(hObject,'Value')} returns selected item from SubstratePopup
-  contents = cellstr(get(hObject, 'String'));
-  handles.substrateName = contents{get(hObject, 'Value')};
-  
-  guidata(hObject.Parent, handles);
-end
-
-
-function SubstratePopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to SubstratePopup (see GCBO)
+function FilmMaterialPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to FilmMaterialPopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -253,28 +263,56 @@ function SubstratePopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 end
 
 
-
-function AmplitudeWeightEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to AmplitudeWeightEdit (see GCBO)
+function FilmThicknessEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to FilmThicknessEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-  % Hints: get(hObject,'String') returns contents of AmplitudeWeightEdit as text
-  %        str2double(get(hObject,'String')) returns contents of AmplitudeWeightEdit as a double
-  entry = get(hObject, 'String');
-  value = sscanf(entry, '%g', 1);
-  clean = Num2Engr(value);
+  % Hints: get(hObject,'String') returns contents of FilmThicknessEdit as text
+  %        str2double(get(hObject,'String')) returns contents of FilmThicknessEdit as a double
+  % Sanitize the contents
+  [clean, value] = CleanNumberString(get(hObject, 'String'));
   set(hObject, 'String', clean);
-  handles.preferences.current.Analysis.amplitudeWeight = value;
+  handles.preferences.current.Analysis.filmThickness = value;
   
   % Set the data
-  handles.amplitudeWeight = value;
+  handles.filmThickness = value;
   guidata(hObject.Parent, handles);
 end
 
 
-function AmplitudeWeightEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to AmplitudeWeightEdit (see GCBO)
+function FilmThicknessEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to FilmThicknessEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+  % Hint: edit controls usually have a white background on Windows.
+  %       See ISPC and COMPUTER.
+  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+      set(hObject,'BackgroundColor','white');
+  end
+end
+
+
+function KapitzaResistanceEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to KapitzaResistanceEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+  % Hints: get(hObject,'String') returns contents of KapitzaResistanceEdit as text
+  %        str2double(get(hObject,'String')) returns contents of KapitzaResistanceEdit as a double
+  [clean, value] = CleanNumberString(get(hObject, 'String'));
+  set(hObject, 'String', clean);
+  handles.preferences.current.Analysis.kapitzaResistance = value;
+  
+  % Set the data
+  handles.kapitzaResistance = value;
+  guidata(hObject.Parent, handles);
+end
+
+
+function KapitzaResistanceEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to KapitzaResistanceEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -313,6 +351,97 @@ function MagnificationPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DE
 end
 
 
+function MaxFrequencyEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to MaxFrequencyEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+  % Hints: get(hObject,'String') returns contents of MaxFrequencyEdit as text
+  %        str2double(get(hObject,'String')) returns contents of MaxFrequencyEdit as a double
+  [clean, value] = CleanNumberString(get(hObject, 'String'));
+  set(hObject, 'String', clean);
+  
+  switch lower(handles.model)
+    case 'fast'
+      handles.preferences.current.Analysis.maximumFrequencyFast = value;
+      
+    case 'film'
+      handles.preferences.current.Analysis.maximumFrequencyFilm = value;
+      
+    case 'full'
+      handles.preferences.current.Analysis.maximumFrequencyFull = value;
+  end
+  
+  % Set the data
+  handles.maximumFrequency = value;
+  guidata(hObject.Parent, handles);
+end
+
+
+function MaxFrequencyEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to MaxFrequencyEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+  % Hint: edit controls usually have a white background on Windows.
+  %       See ISPC and COMPUTER.
+  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+      set(hObject,'BackgroundColor','white');
+  end
+end
+
+
+function ModelPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ModelPopup (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns ModelPopup contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from ModelPopup
+  contents = cellstr(get(hObject, 'String'));
+  index = get(hObject, 'Value');
+  selection = contents{index};
+  handles.model = selection;
+  handles.preferences.current.Analysis.model = index;
+  substrate = 'Off';
+  
+  switch lower(selection)
+    case 'fast'
+      value = handles.preferences.current.Analysis.maximumFrequencyFast;
+      
+    case 'film'
+      substrate = 'On';
+      value = handles.preferences.current.Analysis.maximumFrequencyFilm;
+      
+    case 'full'
+      value = handles.preferences.current.Analysis.maximumFrequencyFull;
+  end
+  
+  % Set the visibility of the substrate material selection box
+  set(handles.SubstratePopup, 'Visible', substrate);
+  set(handles.SubstrateText, 'Visible', substrate);
+  
+  % Set the correct values for maximum frequency
+  handles.maximumFrequency = value;
+  set(handles.maxFrequencyEdit, 'String', Num2Engr(value));
+  
+  guidata(hObject.Parent, handles);
+end
+
+
+function ModelPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to ModelPopup (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+  % Hint: popupmenu controls usually have a white background on Windows.
+  %       See ISPC and COMPUTER.
+  if ispc && isequal(get(hObject, 'BackgroundColor'), get(0, 'defaultUicontrolBackgroundColor'))
+      set(hObject, 'BackgroundColor', 'white');
+  end
+end
+
+
 function RefreshDatabaseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to RefreshDatabaseButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -320,14 +449,6 @@ function RefreshDatabaseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,
   handles = LoadDatabase(handles, true);
   handles = RefreshPopups(handles);
   guidata(hObject.Parent, handles);
-end
-
-
-function EditDatabaseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to EditDatabaseButton (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  handles.database.Edit();
 end
 
 
@@ -425,94 +546,26 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
 end
 
 
-
-function FilmThicknessEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to FilmThicknessEdit (see GCBO)
+function SubstratePopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to SubstratePopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-  % Hints: get(hObject,'String') returns contents of FilmThicknessEdit as text
-  %        str2double(get(hObject,'String')) returns contents of FilmThicknessEdit as a double
-  % Sanitize the contents
-  entry = get(hObject, 'String');
-  value = sscanf(entry, '%g', 1);
-  clean = Num2Engr(value);
-  set(hObject, 'String', clean);
-  handles.preferences.current.Analysis.filmThickness = value;
-  
-  % Set the data
-  handles.filmThickness = value;
-  guidata(hObject.Parent, handles);
-end
-
-
-function FilmThicknessEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to FilmThicknessEdit (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-  % Hint: edit controls usually have a white background on Windows.
-  %       See ISPC and COMPUTER.
-  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-      set(hObject,'BackgroundColor','white');
-  end
-end
-
-
-function FilmMaterialPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to FilmMaterialPopup (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-  % Hints: contents = cellstr(get(hObject,'String')) returns FilmMaterialPopup contents as cell array
-  %        contents{get(hObject,'Value')} returns selected item from FilmMaterialPopup
-  contents = cellstr(get(hObject,'String'));
-  handles.filmMaterial = contents{get(hObject,'Value')};
+  % Hints: contents = cellstr(get(hObject,'String')) returns SubstratePopup contents as cell array
+  %        contents{get(hObject,'Value')} returns selected item from SubstratePopup
+  contents = cellstr(get(hObject, 'String'));
+  handles.substrateName = contents{get(hObject, 'Value')};
   
   guidata(hObject.Parent, handles);
 end
 
 
-function FilmMaterialPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to FilmMaterialPopup (see GCBO)
+function SubstratePopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to SubstratePopup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
   % Hint: popupmenu controls usually have a white background on Windows.
-  %       See ISPC and COMPUTER.
-  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-      set(hObject,'BackgroundColor','white');
-  end
-end
-
-
-
-function KapitzaResistanceEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to KapitzaResistanceEdit (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-  % Hints: get(hObject,'String') returns contents of KapitzaResistanceEdit as text
-  %        str2double(get(hObject,'String')) returns contents of KapitzaResistanceEdit as a double
-  entry = get(hObject, 'String');
-  value = sscanf(entry, '%g', 1);
-  clean = Num2Engr(value);
-  set(hObject, 'String', clean);
-  handles.preferences.current.Analysis.kapitzaResistance = value;
-  
-  % Set the data
-  handles.kapitzaResistance = value;
-  guidata(hObject.Parent, handles);
-end
-
-
-% --- Executes during object creation, after setting all properties.
-function KapitzaResistanceEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to KapitzaResistanceEdit (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-  % Hint: edit controls usually have a white background on Windows.
   %       See ISPC and COMPUTER.
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
