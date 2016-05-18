@@ -22,7 +22,7 @@ function varargout = StartAnalysis(varargin)
 
 % Edit the above text to modify the response to help StartAnalysis
 
-% Last Modified by GUIDE v2.5 16-May-2016 11:29:45
+% Last Modified by GUIDE v2.5 16-May-2016 14:31:54
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -87,9 +87,14 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
   set(handles.FilmThicknessEdit, 'String', Num2Engr(handles.filmThickness));
   % Set the film material to gold
   handles.filmMaterial = 'filmgold';
-  % Film thickness
+  % Kapitza resistance
   handles.kapitzaResistances = handles.preferences.current.Analysis.kapitzaResistance;
   set(handles.KapitzaResistanceEdit, 'String', Num2Engr(handles.kapitzaResistances));
+  % Amplitude weight
+  handles.amplitudeWeight = handles.preferences.current.Analysis.amplitudeWeight;
+  set(handles.AmplitudeWeightEdit, 'String', Num2Engr(handles.amplitudeWeight));
+  % Magnification
+  handles.magnification = handles.preferences.current.Analysis.magnification;
   % Model
   handles.models = get(handles.ModelPopup, 'String');
   handles.model = handles.models{handles.preferences.current.Analysis.model};
@@ -97,11 +102,18 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
   set(handles.ModelPopup, 'Value', index);
   % Try and be clever with the sample name to generate the substrate
   [~, handles.substrateName, ~] = fileparts(handles.file);
-  % Amplitude weight
-  handles.amplitudeWeight = handles.preferences.current.Analysis.amplitudeWeight;
-  set(handles.AmplitudeWeightEdit, 'String', Num2Engr(handles.amplitudeWeight));
-  % Magnification
-  handles.magnification = handles.preferences.current.Analysis.magnification;
+  % Maximum frequency
+  switch lower(handles.model)
+    case 'fast'
+      handles.maximumFrequency = handles.preferences.current.Analysis.maximumFrequencyFast;
+      
+    case 'film'
+      handles.maximumFrequency = handles.preferences.current.Analysis.maximumFrequencyFilm;
+      
+    case 'full'
+      handles.maximumFrequency = handles.preferences.current.Analysis.maximumFrequencyFull;
+  end
+  set(handles.MaximumFrequencyEdit, 'String', Num2Engr(handles.maximumFrequency));
   
   % Refresh the magnification and materials popups
   handles = RefreshPopups(handles);
@@ -351,15 +363,16 @@ function MagnificationPopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DE
 end
 
 
-function MaxFrequencyEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to MaxFrequencyEdit (see GCBO)
+function MaximumFrequencyEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to MaximumFrequencyEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-  % Hints: get(hObject,'String') returns contents of MaxFrequencyEdit as text
-  %        str2double(get(hObject,'String')) returns contents of MaxFrequencyEdit as a double
+  % Hints: get(hObject,'String') returns contents of MaximumFrequencyEdit as text
+  %        str2double(get(hObject,'String')) returns contents of MaximumFrequencyEdit as a double
   [clean, value] = CleanNumberString(get(hObject, 'String'));
   set(hObject, 'String', clean);
+  handles.maximumFrequency = value;
   
   switch lower(handles.model)
     case 'fast'
@@ -373,13 +386,12 @@ function MaxFrequencyEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU
   end
   
   % Set the data
-  handles.maximumFrequency = value;
   guidata(hObject.Parent, handles);
 end
 
 
-function MaxFrequencyEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to MaxFrequencyEdit (see GCBO)
+function MaximumFrequencyEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to MaximumFrequencyEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -488,11 +500,15 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
   message{1} = sprintf('Fitting results:   (%sconstant value, not fitted)', maskMark);
   message{3} = sprintf('Goodness-of-Fit:   %s', Num2Engr(finalChiSquared));
   cellOfErrors = Num2Engr(standardError);
-  standardErrorString = '';
-  for i = 1:length(cellOfErrors);
-    standardErrorString = [standardErrorString, ' ', cellOfErrors{i}]; %#ok<AGROW>
+  if handles.settings.current.Analysis.skipErrorAnalysis
+    standardErrorString = '';
+    for i = 1:length(cellOfErrors);
+      standardErrorString = [standardErrorString, ' ', cellOfErrors{i}]; %#ok<AGROW>
+    end
+    standardErrorString = strtrim(standardErrorString);
+  else
+    standardErrorString = 'Error analysis not performed';
   end
-  standardErrorString = strtrim(standardErrorString);
   message{4} = sprintf('Standard Error:   ±%s', standardErrorString);
   message{numberOfProperties + 6} = 'Would you like to save the data?';
   for p = 1:length(properties)

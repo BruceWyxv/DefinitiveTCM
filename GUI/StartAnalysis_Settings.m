@@ -22,7 +22,7 @@ function varargout = StartAnalysis_Settings(varargin)
 
 % Edit the above text to modify the response to help StartAnalysis_Settings
 
-% Last Modified by GUIDE v2.5 16-May-2016 12:26:12
+% Last Modified by GUIDE v2.5 16-May-2016 14:53:05
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -75,6 +75,15 @@ function StartAnalysis_Settings_OpeningFcn(hObject, eventdata, handles, varargin
   % Assign additional parameters
   handles.originalSettings = parser.Results.settings;
   handles.settings = handles.originalSettings.current.Analysis;
+  
+  % Initialize the values
+  set(handles.IntegrationStepsEdit, 'String', Num2Engr(handles.settings.integrationSteps));
+  set(handles.IntegrationWidthEdit, 'String', Num2Engr(handles.settings.integrationWidth));
+  set(handles.MaximumEvaluationsEdit, 'String', Num2Engr(handles.settings.maximumEvaluations));
+  set(handles.OffsetLimitEdit, 'String', Num2Engr(handles.settings.frequencyOffsetLimit));
+  set(handles.ScanScaleEdit, 'String', Num2Engr(handles.settings.scanScaling));
+  set(handles.SkipErrorAnalysisCheckbox, 'Value', handles.settings.skipErrorAnalysis);
+  set(handles.ToleranceEdit, 'String', Num2Engr(handles.settings.tolerance));
 
   % Update handles structure
   guidata(hObject, handles);
@@ -98,11 +107,11 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
-function CancelButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+function CancelButton_Callback(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to CancelButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  close(handles.Parent);
+  close(hObject.Parent);
 end
 
 
@@ -122,7 +131,7 @@ function IntegrationStepsEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,D
 end
 
 
-function IntegrationStepsEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+function IntegrationStepsEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to IntegrationStepsEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
@@ -132,8 +141,6 @@ function IntegrationStepsEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
   end
-  
-  set(hObject, 'String', Num2Engr(handles.settings.integrationSteps));
 end
 
 
@@ -153,7 +160,7 @@ function IntegrationWidthEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,D
 end
 
 
-function IntegrationWidthEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+function IntegrationWidthEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to IntegrationWidthEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
@@ -163,18 +170,16 @@ function IntegrationWidthEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
   end
-  
-  set(hObject, 'String', Num2Engr(handles.settings.integrationWidth));
 end
 
 
-function MaxEvaluationsEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to MaxEvaluationsEdit (see GCBO)
+function MaximumEvaluationsEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to MaximumEvaluationsEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-  % Hints: get(hObject,'String') returns contents of MaxEvaluationsEdit as text
-  %        str2double(get(hObject,'String')) returns contents of MaxEvaluationsEdit as a double
+  % Hints: get(hObject,'String') returns contents of MaximumEvaluationsEdit as text
+  %        str2double(get(hObject,'String')) returns contents of MaximumEvaluationsEdit as a double
   [clean, value] = CleanNumberString(get(hObject, 'String'));
   set(hObject, 'String', clean);
   
@@ -184,8 +189,8 @@ function MaxEvaluationsEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEF
 end
 
 
-function MaxEvaluationsEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to MaxEvaluationsEdit (see GCBO)
+function MaximumEvaluationsEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to MaximumEvaluationsEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -194,18 +199,16 @@ function MaxEvaluationsEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DE
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
   end
-  
-  set(hObject, 'String', Num2Engr(handles.settings.maximumEvaluations));
 end
 
 
-function OffestLimitEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to OffestLimitEdit (see GCBO)
+function OffsetLimitEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to OffsetLimitEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-  % Hints: get(hObject,'String') returns contents of OffestLimitEdit as text
-  %        str2double(get(hObject,'String')) returns contents of OffestLimitEdit as a double
+  % Hints: get(hObject,'String') returns contents of OffsetLimitEdit as text
+  %        str2double(get(hObject,'String')) returns contents of OffsetLimitEdit as a double
   [clean, value] = CleanNumberString(get(hObject, 'String'));
   set(hObject, 'String', clean);
   
@@ -215,8 +218,8 @@ function OffestLimitEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-function OffestLimitEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to OffestLimitEdit (see GCBO)
+function OffsetLimitEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to OffsetLimitEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -225,8 +228,6 @@ function OffestLimitEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
   end
-  
-  set(hObject, 'String', Num2Engr(handles.settings.frequencyOffsetLimit));
 end
 
 
@@ -255,7 +256,7 @@ function ScanScaleEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-function ScanScaleEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+function ScanScaleEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to ScanScaleEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
@@ -265,8 +266,6 @@ function ScanScaleEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white')
   end
-  
-  set(hObject, 'String', Num2Engr(handles.settings.scanScaling));
 end
 
 
@@ -283,11 +282,10 @@ function SkipErrorAnalysisCheckbox_Callback(hObject, eventdata, handles) %#ok<IN
 end
 
 
-function SkipErrorAnalysisCheckbox_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+function SkipErrorAnalysisCheckbox_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to SkipErrorAnalysisCheckbox (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
-  set(hObject, 'Value', handles.settings.skipErrorAnalysis);
 end
 
 
@@ -307,7 +305,7 @@ function ToleranceEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-function ToleranceEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+function ToleranceEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to ToleranceEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
@@ -317,6 +315,4 @@ function ToleranceEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
   end
-  
-  set(hObject, 'String', Num2Engr(handles.settings.tolerance));
 end

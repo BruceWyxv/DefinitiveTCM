@@ -8,7 +8,7 @@ function StartDefinitiveTCM
     ConfigurationFileManager.GetInstance();
 
     % Ensure that the GUI elements are in path
-    oldPath = addpath('GUI');
+    oldPath = addpath('Analysis', 'GPIB', 'GUI','Utilities');
     
       % Configure the look and feel of the GUI
       LookAndFeel();

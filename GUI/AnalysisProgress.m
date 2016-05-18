@@ -322,7 +322,7 @@ function halt = Update(handles, solutionClass)
     logProgress = log10(largestDifference);
     linearProgress = (1 - abs(logProgress - bottom) / spread);
     barProgress = uiwaitbar('get', handles.ProgressBar);
-    progress = max([linearProgress, barProgress]) + .5 / handles.settings.current.Analysis.maxEvaluations;
+    progress = max([linearProgress, barProgress]) + .5 / handles.settings.current.Analysis.maximumEvaluations;
     if progress > .999
       progress = .999;
     end

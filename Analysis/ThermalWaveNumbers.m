@@ -96,7 +96,7 @@ classdef ThermalWaveNumbers < handle
     
     function standardError = GetStandardError(myself)
     % Calculate the standard error of the final solution
-      if myself.settings.Analysis.skipErrorAnalysis
+      if myself.settings.current.Analysis.skipErrorAnalysis
         standardError = -ones(1, myself.numberOfFrequencies);
       else
         % standard deviation of the residuals
@@ -130,8 +130,8 @@ classdef ThermalWaveNumbers < handle
       problem.objective = fitEvaluation;
       problem.x0 = startValues;
       problem.solver = 'fminsearch';
-      problem.options = optimset('MaxFunEvals', myself.settings.current.Analysis.maxEvaluations,...
-                                 'MaxIter', myself.settings.current.Analysis.maxEvaluations,...
+      problem.options = optimset('MaxFunEvals', myself.settings.current.Analysis.maximumEvaluations,...
+                                 'MaxIter', myself.settings.current.Analysis.maximumEvaluations,...
                                  'OutputFcn', @myself.MinimizationPlot,...
                                  'TolFun', myself.settings.current.Analysis.tolerance,...
                                  'TolX', myself.settings.current.Analysis.tolerance);

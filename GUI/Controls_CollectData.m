@@ -149,6 +149,7 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
           data.sampleName = handles.sampleName;
           data.savepath = savePath;
           save(savePath, '-struct', 'data');
+          CheckPath(handles); % Update the file name state
 
           % Update the preferences (only when successfully collected)
           handles.preferences.current.CollectData.savePath = savePath;

@@ -9,43 +9,37 @@ classdef ESP300_Control < GPIB_Interface
   
   properties (SetAccess = immutable, GetAccess = public)
     activeStages; % Logical array of active stages
+    originalStageSpeeds; % Speed of the stages upon loading the class
   end
   
   properties (Constant = true, GetAccess = public)
     maxStages = 3; % The maximum ID of stages available
   end
   
+  properties (SetAccess = private, GetAccess = public)
+    slowStageSpeeds; % Fast stage speeds
+    fastStageSpeeds; % Slow stage speeds
+  end
+  
   methods
-    function myself = ESP300_Control(address, homeStages, name)
+    function myself = ESP300_Control(address, name)
     % Construct this class and call the superclass constructor to initialze
     % the interface to the device
-      if nargin == 2
+      if nargin < 2
         name = GPIB_Interface.GetUnknownDeviceName();
       end
       myself@GPIB_Interface(address, name);
       
       % Turn on the system and check for active stages
-      myself.activeStages = [1 1 1]; % Assume all stages are active
-      myself.activeStages = ~strcmp(strtrim(myself.Query([1 2 3],'ID')), 'Unknown'); % Block out inactive stages
-      myself.TurnOnMotor([1 2 3]);
+      myself.activeStages = ones(1, myself.maxStages); % Assume all stages are active
+      myself.activeStages = ~strcmp(strtrim(myself.Query(1:myself.maxStages, 'ID')), 'Unknown'); % Block out inactive stages
+      myself.TurnOnMotor(1:myself.maxStages);
       
-      % Turn on the motors and home the stages
-      approveHome = 'ask';
-      for i = 1:3
-        if myself.activeStages(i)
-          if homeStages && (strcmp(approveHome, 'ask') || strcmp(approveHome, 'yes'))
-            approveHome = myself.HomeAxis(i, approveHome);
-            myself.WaitForAction(i);
-          end
-        end
-      end
-    end
-    
-    function SetLimits(myself, axes, limits)
-    % Set the travel limits for the stages
-      myself.SetStageLimits(axes(1), limits(1,:));
-      myself.SetStageLimits(axes(2), limits(2,:));
-      myself.SetStageLimits(axes(3), limits(3,:));
+      % Get the stage speeds
+      myself.originalStageSpeeds = myself.GetStageSpeed(1:myself.maxStages);
+      myself.fastStageSpeeds = myself.originalStageSpeeds * 0.6;
+      myself.slowStageSpeeds = myself.originalStageSpeeds * 0.1;
+      myself.UseSlowSpeed();
     end
     
     function Beep(myself, varargin)
@@ -75,7 +69,29 @@ classdef ESP300_Control < GPIB_Interface
       speed = str2double(myself.Query(axis, 'VA'));
     end
     
-    function valid = IsValidAxis(myself, axes)
+    function positionHistory = HomeAxis(myself, axis)
+    % Moves a stage to the home position
+      if isnumeric(axis)
+        myself.Command(axis, 'OR');
+      end
+      
+      % Read the instantaneous positions
+      maxIterations = 4000; % Enough for 2 minutes of homing action
+      positionHistory = zeros(1, maxIterations);
+      for i = 1:maxIterations
+        pause(.030);
+        positionHistory(i) = str2double(myself.Query(axis, 'TP'));
+        
+        % Break if the motion is completed
+        if str2double(myself.Query(axis, 'MD')) == 1
+          break;
+        end
+      end
+      
+      positionHistory = positionHistory(positionHistory ~= 0);
+    end
+    
+    function valid = IsValidAxes(myself, axes)
     % Checks the value(s) of 'axes' and determines if it is valid
       valid = true;
       for a = 1:length(axes)
@@ -94,7 +110,7 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
-    function MinimizeHysteresis(myself, axis, firstTwoPositions)
+    function MinimizeHysteresis(myself, axes, firstTwoPositions)
     % Minimize stage hysteresis by approaching the initial position from
     % the opposite direction
       if ~isnumeric(firstTwoPositions) || length(firstTwoPositions) < 1
@@ -103,48 +119,88 @@ classdef ESP300_Control < GPIB_Interface
       end
       
       % Only minimize hysteresis if the axis is actually moving
-      for a = 1:length(axis)
+      for a = 1:length(axes)
         if ~isFloatEqual(firstTwoPositions(a,1), firstTwoPositions(a,2))
           hysteresisPosition = firstTwoPositions(a,1) + 4 * (firstTwoPositions(a,1) - firstTwoPositions(a,2));
-          myself.MoveAxis(axis(a), hysteresisPosition);
-          myself.WaitForAction(axis(a));
+          myself.MoveAxis(axes(a), hysteresisPosition);
+          myself.WaitForAction(axes(a));
         end
       end
     end
     
-    function MoveAxis(myself, axis, position, progressBar)
+    function MoveAxis(myself, axes, position, progressBar)
     % Move the specified axis to the desired position. Optionally display a
     % progress bar if requested.
-      if isnumeric(axis) && isnumeric(position)
-        myself.Command(axis, 'PA', position);
+      if isnumeric(axes) && isnumeric(position)
+        myself.Command(axes, 'PA', position);
       else
         warning('ESP300_Control:BadArgument', 'Both ''axis'' and ''position'' must be numeric.');
         return;
       end
       
       if nargin == 4 && progressBar
-        myself.WaitForAction(axis, 'FinalPosition', position, 'Message', 'Please wait while the stage is moving...');
+        myself.WaitForAction(axes, 'Message', 'Please wait while the stage is moving...');
       end
     end
     
-    function SetStageSpeed(myself, axis, speed)
-    % Set the current speed of the requested axis
-      myself.Command(axis, 'VA', speed);
+    function SetLimits(myself, axes, limits)
+    % Set the travel limits for the stages
+      for i = 1:length(axes)
+        myself.SetStageLimits(axes(i), limits(i,:));
+      end
     end
     
-    function SetToZero(myself, axis)
+    function SetSlowSpeed(myself, axes, speed)
+    % Set the current speed of the requested axis
+      if ~myself.IsValidAxes(axes)
+        return;
+      end
+      
+      if length(speed) ~= length(axes)
+        if isempty(speed)
+          warning('ESP300_Control:NoSpeed', 'No speed value provided, not setting slow speed value.');
+          return;
+        end
+        if length(speed) ~= 1
+          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''speed'', must be either ''1'' or equal to the number of ''axes'' specified.');
+        end
+        speed = ones(1, length(axes)) * speed(1);
+      end
+        
+      for a = 1:length(axes)
+        myself.slowStageSpeeds(a) = speed(a);
+      end
+    end
+    
+    function SetToZero(myself, axes)
     % Set the current position of the axis as 0.0
-     if isnumeric(axis)
-       myself.Command(axis, 'DH');
+     if isnumeric(axes)
+       myself.Command(axes, 'DH');
      else
        warning('ESP300_Control:BadArgument', '''axis'' must be numeric.');
      end
     end
     
-    function WaitForAction(myself, axis, varargin)
+    function UseFastSpeed(myself, axes)
+    % Set the axes to use the 'fast' speed
+      if nargin == 1
+        axes = 1:myself.maxStages;
+      end
+      myself.SetAxesSpeed(axes, myself.fastStageSpeeds(axes));
+    end
+    
+    function UseSlowSpeed(myself, axes)
+    % Set the axes to use the 'slow' speed
+      if nargin == 1
+        axes = 1:myself.maxStages;
+      end
+      myself.SetAxesSpeed(axes, myself.slowStageSpeeds(axes));
+    end
+    
+    function WaitForAction(myself, axes, varargin)
     % Wait for a stage motion action to complete. Optionally display a
     % progess bar if requested and the appropriate arguments are provided.
-      if ~myself.IsValidAxis(axis)
+      if ~myself.IsValidAxes(axes)
         return;
       end
       
@@ -153,21 +209,20 @@ classdef ESP300_Control < GPIB_Interface
       % Check the input arguments
       if ~isempty(varargin)
         parser = inputParser;
-        parser.addRequired('axis', @isnumeric);
-        parser.addOptional('finalPosition', 0, @isnumeric);
-        parser.addOptional('message', 'Please wait...', @ischar);
+        parser.addRequired('axes', @isnumeric);
+        parser.addOptional('message', 'Please wait for stage action to complete...');
         % Parse the input arguments
         parser.KeepUnmatched = true;
         try
-          parser.parse(axis, varargin{:});
+          parser.parse(axes, varargin{:});
           % Assign values
-          axis = parser.Results.axis;
+          axes = parser.Results.axes;
           message = parser.Results.message;
-          finalPosition = parser.Results.finalPosition;
           
           % Peform some calculations
-          initialPosition = str2double(myself.Query(axis, 'PA'));
-          range = finalPosition - initialPosition;
+          initialPosition = str2double(myself.Query(axes, 'TP'));
+          finalPosition = str2double(myself.Query(axes, 'PA'));
+          range = abs(finalPosition - initialPosition);
           useWaitBar = true;
         catch me
           warning('ESP300_Control:InvalidArgument', me.message);
@@ -178,7 +233,7 @@ classdef ESP300_Control < GPIB_Interface
         % movement is complete. Also, disable the close functionality (a
         % user should not be able to prematurely close the window while the
         % process is still completing.
-        progressBar = waitbar(0, message);%, 'WindowStyle', 'modal', 'CloseRequestFcn', '');
+        progressBar = waitbar(0, message, 'WindowStyle', 'modal', 'CloseRequestFcn', '');
         set(progressBar, 'Pointer', 'watch');
       end
   
@@ -186,12 +241,12 @@ classdef ESP300_Control < GPIB_Interface
       motionCompleted = 0;
       while ~motionCompleted
         % Check the motion done status
-        motionCompleted = str2double(myself.Query(axis, 'MD'));
+        motionCompleted = all(str2double(myself.Query(axes, 'MD')));
         
         % Update the wait bar if it is used
         if useWaitBar
-          currentPosition = str2double(myself.Query(axis, 'PA'));
-          percent = (currentPosition - initialPosition) / range;
+          currentPosition = str2double(myself.Query(axes, 'TP'));
+          percent = sum(abs((currentPosition - initialPosition) ./ range)) / length(axes);
           waitbar(percent, progressBar);
         end
         
@@ -239,7 +294,7 @@ classdef ESP300_Control < GPIB_Interface
       % Iterate over all the provided axes
       for a = 1:length(axis)
         % Validate the provided axis argument
-        if ~myself.IsValidAxis(axis(a))
+        if ~myself.IsValidAxes(axis(a))
           continue;
         end
         
@@ -266,31 +321,7 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
-    function approveHome = HomeAxis(myself, axis, approveHome)
-    % Moves a stage to the home position
-      if strcmp(approveHome, 'ask')
-        answer = questdlg('Preparing to home the stages. Is this OK?', 'Warning', 'Yes', 'Already Homed', 'Abort', 'Yes');
-        
-        switch answer
-          case 'Yes'
-            approveHome = 'yes';
-            uiwait(warndlg({'Ensure it is safe to home the stages.'; 'Click ''OK'' to proceed.'}, 'Check sample', 'modal'));
-            
-          case 'Already Homed'
-            approveHome = 'already';
-            return;
-            
-          case 'Abort'
-            error('Stages will not be homed. Connection to the stage controller failed.');
-        end
-      end;
-      
-      if isnumeric(axis)
-        myself.Command(axis, 'OR');
-      end
-    end
-    
-    function reply = Query(myself, axis, command)
+    function reply = Query(myself, axes, command)
     % Construct a command and send to the device
       % Validate the command
       if ~ischar(command)
@@ -299,12 +330,12 @@ classdef ESP300_Control < GPIB_Interface
       end
       
       % Iterate over all the provided axes
-      reply{length(axis)} = [];
-      for a = 1:length(axis)
-        if ~myself.IsValidAxis(axis(a))
+      reply{length(axes)} = [];
+      for a = 1:length(axes)
+        if ~myself.IsValidAxes(axes(a))
           continue;
         end
-        reply{a} = GPIB_Interface.Communicate(myself, sprintf('%i%s?', axis(a), command));
+        reply{a} = GPIB_Interface.Communicate(myself, sprintf('%i%s?', axes(a), command));
       end
     end
     
@@ -335,6 +366,11 @@ classdef ESP300_Control < GPIB_Interface
       myself.Command(axis, 'SR', limits(2));
     end
     
+    function SetAxesSpeed(myself, axes, speed)
+    % The the speed of the axes to speed
+      myself.Command(axes, 'VA', speed);
+    end
+    
     function TurnOffMotor(myself, axis)
     % Turn the motor for an axis off
       if isnumeric(axis)
@@ -353,8 +389,11 @@ classdef ESP300_Control < GPIB_Interface
   % Define methods with access by this class only
   methods (Access = private)
     function delete(myself)
+    % Reset the stage speeds
+      myself.SetAxesSpeed(1:myself.maxStages, myself.originalStageSpeeds);
+      
     % Turns off the stage motors
-      for i = 1:3
+      for i = 1:myself.maxStages
         if myself.activeStages(i)
           myself.TurnOffMotor(i);
         end

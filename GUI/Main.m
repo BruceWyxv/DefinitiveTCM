@@ -261,8 +261,8 @@ function handles = ConnectHardware(handles)
   % Connect to GPIB devices
   handles.laserScanController =...
     ESP300_Control(handles.settings.current.LaserController.address,...
-                   false,...
                    'Laser Controller');
+  handles.laserScanController.UseFastSpeed();
   handles.lockInAmpController =...
     SR830_Control(handles.settings.current.LockInAmp.address,...
                   'Lock-in Amplifier');
@@ -275,8 +275,10 @@ function handles = ConnectHardware(handles)
                   'Function Generator');
   handles.stageController =...
     ESP300_Control(handles.settings.current.StageController.address,...
-                   true,...
                    'Stage Controller');
+  
+  % Home the stages
+  HomeSampleStages(handles);
 
   % Set the maximum travel ranges of the sample stages
   stageIDs = [handles.settings.current.StageController.xAxisID, ...
@@ -285,15 +287,14 @@ function handles = ConnectHardware(handles)
   handles.stageController.SetLimits(stageIDs, [handles.settings.current.SoftStageBoundaries.x; ...
                                                handles.settings.current.SoftStageBoundaries.y; ...
                                                handles.settings.current.SoftStageBoundaries.z]);
-  % Move the Z axis to a its lowest software boundary - the Z axis needs an
-  % exception since the home seek does not move it to the middle of the
-  % travel range, but to the absolute lowest point.
-  handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, 4);
+                                             
   % Set the travel velocities of the stages
-  handles.stageController.SetStageSpeed(stageIDs, [handles.settings.current.StageController.xAxisSpeed, ...
-                                                   handles.settings.current.StageController.yAxisSpeed, ...
-                                                   handles.settings.current.StageController.zAxisSpeed]);
+  handles.stageController.SetSlowSpeed(stageIDs, [handles.settings.current.StageController.xAxisSpeed, ...
+                                                  handles.settings.current.StageController.yAxisSpeed, ...
+                                                  handles.settings.current.StageController.zAxisSpeed]);
+  handles.stageController.UseSlowSpeed();
 end
+
 
 function handles = DisconnectHardware(handles)
 % Disconnect the hardware by setting the handles to empty. The individual
@@ -307,6 +308,58 @@ function handles = DisconnectHardware(handles)
   handles.pumpLaserController = '';
   handles.stageController = '';
 end
+
+
+function HomeSampleStages(handles)
+% Home the sample stages
+  xAxis = handles.settings.current.StageController.xAxisID;
+  yAxis = handles.settings.current.StageController.yAxisID;
+  zAxis = handles.settings.current.StageController.zAxisID;
+  
+  options.yes = 'Yes';
+  options.homeAndReturn = 'Home and Return';
+  options.abort = 'Abort';
+  answer = questdlg('Preparing to home the sample stages. Is this OK?', 'Warning', ...
+                    options.yes, options.homeAndReturn, options.abort, ...
+                    options.homeAndReturn);
+  if strcmp(answer, options.abort)
+    handles.stageController = [];
+    error('Stages will not be homed. Connection to the stage controller failed.');
+  else
+    uiwait(warndlg({'Ensure it is safe to home the stages.'; 'Click ''OK'' to proceed.'}, 'Check sample', 'modal'));
+    
+    % Home the Z axis first so that we can drop it all the way to 0 and
+    % ensure the safe movement of the X and Y axes without fear of crashing
+    % the equipment
+    handles.stageController.UseFastSpeed();
+    handles.stageController.SetLimits(zAxis, [-1000, 1000]);
+    handles.stageController.SetToZero([xAxis, yAxis, zAxis]);
+    originalPositions.z = handles.stageController.HomeAxis(zAxis);
+    originalPositions.x = handles.stageController.HomeAxis(xAxis);
+    originalPositions.y = handles.stageController.HomeAxis(yAxis);
+    
+    if strcmp(answer, options.homeAndReturn)
+      % Determine the best location from the homing process that represents
+      % the original location
+      originalPositions.x = originalPositions.x(end - 5);
+      originalPositions.y = originalPositions.y(end - 5);
+      zMask = abs(originalPositions.z) > 0.05;
+      originalPositions.z = originalPositions.z(zMask);
+      originalPositions.z = originalPositions.z(end - 5);
+      
+      % Return the sample to it's original position, don't forget to invert
+      % the value since we are now traveling back the opposite direction
+      handles.stageController.MoveAxis([xAxis, yAxis], [-originalPositions.x, -originalPositions.y]);
+      handles.stageController.WaitForAction([xAxis, yAxis], 'Message', 'Please wait while the X and Y axes are returned to their original location...');
+      handles.stageController.MoveAxis(zAxis, -originalPositions.z);
+      handles.stageController.WaitForAction(zAxis, 'Message', 'Please wait while the Z axis is returned to its original location...');
+    end
+    
+    handles.stageController.SetLimits(zAxis, handles.settings.current.SoftStageBoundaries.z);
+    handles.stageController.UseSlowSpeed();
+  end
+end
+
 
 function isOpen = SwitchIfOpen(handles, addOn)
 % Makes the ControlsGUI context if the window is already open
