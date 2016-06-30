@@ -143,6 +143,28 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
+    function SetFastSpeed(myself, axes, speed)
+    % Set the current speed of the requested axis
+      if ~myself.IsValidAxes(axes)
+        return;
+      end
+      
+      if length(speed) ~= length(axes)
+        if isempty(speed)
+          warning('ESP300_Control:NoSpeed', 'No speed value provided, not setting slow speed value.');
+          return;
+        end
+        if length(speed) ~= 1
+          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''speed'', must be either ''1'' or equal to the number of ''axes'' specified.');
+        end
+        speed = ones(1, length(axes)) * speed(1);
+      end
+        
+      for a = 1:length(axes)
+        myself.fastStageSpeeds(a) = speed(a);
+      end
+    end
+    
     function SetLimits(myself, axes, limits)
     % Set the travel limits for the stages
       for i = 1:length(axes)
