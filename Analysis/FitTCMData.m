@@ -165,9 +165,9 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
     substrateProperties = database.GetThermalProperties(substrateName);
     substrateFound = true;
   catch
-    % Nothing found so seed the properties with the values for pyrex, a
-    % good middle-of-the-road material for the range of the TCm
-    substrateProperties = database.GetThermalProperties('pyrex');
+    % Nothing spoecified; seed the properties with the values of 'seed', a
+    % good middle-of-the-road psuedo-material for the range of the TCM
+    substrateProperties = database.GetThermalProperties('seed');
   end
   
   % Define the parameters. Not all will be required for each fitting

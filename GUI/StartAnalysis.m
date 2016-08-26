@@ -22,7 +22,7 @@ function varargout = StartAnalysis(varargin)
 
 % Edit the above text to modify the response to help StartAnalysis
 
-% Last Modified by GUIDE v2.5 16-May-2016 14:31:54
+% Last Modified by GUIDE v2.5 18-May-2016 18:00:52
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -102,18 +102,24 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
   set(handles.ModelPopup, 'Value', index);
   % Try and be clever with the sample name to generate the substrate
   [~, handles.substrateName, ~] = fileparts(handles.file);
-  % Maximum frequency
+  % Maximum frequency and substrate material visibility
+  substrateVisibility = 'Off';
   switch lower(handles.model)
     case 'fast'
       handles.maximumFrequency = handles.preferences.current.Analysis.maximumFrequencyFast;
       
     case 'film'
+      substrateVisibility = 'On';
       handles.maximumFrequency = handles.preferences.current.Analysis.maximumFrequencyFilm;
       
     case 'full'
       handles.maximumFrequency = handles.preferences.current.Analysis.maximumFrequencyFull;
   end
+  set(handles.SubstratePopup, 'Visible', substrateVisibility);
+  set(handles.SubstrateText, 'Visible', substrateVisibility);
   set(handles.MaximumFrequencyEdit, 'String', Num2Engr(handles.maximumFrequency));
+  % Frequency-phase weighting
+  set(handles.WeightFrequenciesCheckbox, 'Value', handles.preferences.current.Analysis.weightFrequencies);
   
   % Refresh the magnification and materials popups
   handles = RefreshPopups(handles);
@@ -435,7 +441,7 @@ function ModelPopup_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
   
   % Set the correct values for maximum frequency
   handles.maximumFrequency = value;
-  set(handles.maxFrequencyEdit, 'String', Num2Engr(value));
+  set(handles.MaximumFrequencyEdit, 'String', Num2Engr(value));
   
   guidata(hObject.Parent, handles);
 end
@@ -500,14 +506,14 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
   message{1} = sprintf('Fitting results:   (%sconstant value, not fitted)', maskMark);
   message{3} = sprintf('Goodness-of-Fit:   %s', Num2Engr(finalChiSquared));
   cellOfErrors = Num2Engr(standardError);
-  if handles.settings.current.Analysis.skipErrorAnalysis
+  if handles.settings.current.Analysis.skipErrorAnalysis == 1
+    standardErrorString = 'Error analysis not performed';
+  else
     standardErrorString = '';
     for i = 1:length(cellOfErrors);
       standardErrorString = [standardErrorString, ' ', cellOfErrors{i}]; %#ok<AGROW>
     end
     standardErrorString = strtrim(standardErrorString);
-  else
-    standardErrorString = 'Error analysis not performed';
   end
   message{4} = sprintf('Standard Error:   ±%s', standardErrorString);
   message{numberOfProperties + 6} = 'Would you like to save the data?';
@@ -552,7 +558,19 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
   end
   
   if saveFile
-    data = [propertyNames; values];
+    if handles.settings.current.Analysis.skipErrorAnalysis == 1
+      data = [propertyNames; values];
+    else
+      errors = cell(1, length(properties));
+      i = 1;
+      for p = 1:length(properties)
+        if mask(p)
+          errors{p} = cellOfErrors{i};
+          i = i + 1;
+        end
+      end
+      data = [propertyNames; values; errors];
+    end
     sheet = 'Data';
     xlswrite(excelFile, data, sheet);
   end
@@ -586,6 +604,19 @@ function SubstratePopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
   end
+end
+
+
+function WeightFrequenciesCheckbox_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to WeightFrequenciesCheckbox (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+  % Hint: get(hObject,'Value') returns toggle state of WeightFrequenciesCheckbox
+  handles.preferences.current.Analysis.weightFrequencies = get(hObject, 'Value');
+  
+  % Save the changes
+  guidata(hObject.Parent, handles);
 end
 
 
@@ -624,7 +655,7 @@ function handles = RefreshPopups(handles)
     set(handles.SubstratePopup, 'String', handles.materials);
     index = find(strcmp(handles.materials, handles.substrateName), 1);
     if isempty(index)
-      handles.substrateName = 'pyrex';
+      handles.substrateName = 'seed';
       index = find(strcmp(handles.materials, handles.substrateName), 1);
     end
     set(handles.SubstratePopup, 'Value', index);

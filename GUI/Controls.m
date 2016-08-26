@@ -483,15 +483,20 @@ function [stagePosition, x, y, z] = DetermineStagePosition(handles)
     end
   end
   
-  switch fields{position}
-    case 'load'
-      stagePosition = 'SampleLoading';
-      
-    case 'wide'
-      stagePosition = 'WideImage';
-      
-    case 'scan'
-      stagePosition = 'ScanningObjective';
+  if position == -1
+    warning('GUI_Controls:UnknownPosition', 'Unable to determine the location of the stage. The stage will be move to the ''Sample Loading'' position');
+    stagePosition = 'SampleLoading';
+  else
+    switch fields{position}
+      case 'load'
+        stagePosition = 'SampleLoading';
+
+      case 'wide'
+        stagePosition = 'WideImage';
+
+      case 'scan'
+        stagePosition = 'ScanningObjective';
+    end
   end
 end
 

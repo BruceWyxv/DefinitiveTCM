@@ -7,8 +7,8 @@ classdef FitProperties < uint8
     SubstrateAnisoDiffusivity   (4)
     FilmConductivity            (5)
     FilmDiffusivity             (6)
-    KapitzaResistance           (7)
-    SpotSize                    (8)
+    SpotSize                    (7)
+    KapitzaResistance           (8)
   end
   
   methods (Static)
@@ -38,11 +38,11 @@ classdef FitProperties < uint8
         case FitProperties.FilmDiffusivity
           name = 'Film Diffusivity';
           
-        case FitProperties.KapitzaResistance
-          name = 'Kapitza Resistance';
-          
         case FitProperties.SpotSize
           name = 'Convolved Spot Size';
+          
+        case FitProperties.KapitzaResistance
+          name = 'Kapitza Resistance';
       end
     end
   end

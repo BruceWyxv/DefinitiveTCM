@@ -34,6 +34,8 @@ classdef ThermalWaveNumbers < handle
   
   properties (SetAccess = private, GetAccess = private)
     analysisPlot; % A handle to a window that plots the intermediate values
+    interrupted; % True if the analysis process was interrupted
+    comparison;
   end
   
   properties (SetAccess = private, GetAccess = public)
@@ -58,6 +60,7 @@ classdef ThermalWaveNumbers < handle
       myself.iterations = 0;
       myself.filmThickness = filmThickness;
       myself.frequencies = data.frequencies;
+      myself.interrupted = false;
       myself.numberOfFrequencies = length(myself.frequencies);
       myself.numberOfSteps = length(data.positions(1,:));
       myself.preferences = preferences;
@@ -96,13 +99,17 @@ classdef ThermalWaveNumbers < handle
     
     function standardError = GetStandardError(myself)
     % Calculate the standard error of the final solution
-      if myself.settings.current.Analysis.skipErrorAnalysis
+      if myself.settings.current.Analysis.skipErrorAnalysis || myself.interrupted
         standardError = -ones(1, myself.numberOfFrequencies);
       else
         % standard deviation of the residuals
+        if myself.amplitudeWeight > 0
+          degreesOfFreedom = myself.numberOfFrequencies * (myself.numberOfSteps + length(myself.amplitudeData(1,:)) - 2);
+        else
+          degreesOfFreedom = myself.numberOfFrequencies * (myself.numberOfSteps - 2);
+        end
         identityWeights = ones(1, myself.numberOfFrequencies);
-        sdr = myself.GoodnessOfFit(myself.analyticalSolution, identityWeights);
-        sdr = sdr * (myself.numberOfFrequencies - 1) / (myself.numberOfFrequencies * (myself.numberOfSteps - 2));
+        sdr2 = myself.GoodnessOfFit(myself.analyticalSolution, identityWeights) / degreesOfFreedom;
 
         % jacobian matrix
         J = ThermalWaveNumbers.JacobianEstimation(myself.fitFunction, myself.currentValues(myself.fitMask));
@@ -110,14 +117,14 @@ classdef ThermalWaveNumbers < handle
         % I'll be lazy here, and use inv. Please, no flames,
         % if you want a better approach, look in my tips and
         % tricks doc.
-        Sigma = sdr^2*inv(J'*J);
+        Sigma2 = sdr2*inv(J'*J);
 
         % Parameter standard errors
-        se = sqrt(diag(Sigma))';
+        se2 = sqrt(diag(Sigma2))';
 
         % which suggest rough confidence intervalues around
         % the parameters might be...
-        standardError = 2 * se;
+        standardError = 2 * se2;
       end
     end
     
@@ -135,9 +142,13 @@ classdef ThermalWaveNumbers < handle
                                  'OutputFcn', @myself.MinimizationPlot,...
                                  'TolFun', myself.settings.current.Analysis.tolerance,...
                                  'TolX', myself.settings.current.Analysis.tolerance);
+      global dtcmchihistory;
+      dtcmchihistory = [];
       [finalValues, finalGoodness, exitFlag, output] = fminsearch(problem);
       
       % Return the results
+      comparison = myself.comparison;
+      save('S:\Matlab\comp_suite.mat', 'comparison');
       allProperties = myself.initialValues;
       allProperties(myself.fitMask) = finalValues;
       fittedPropertiesMask = myself.fitMask;
@@ -164,13 +175,14 @@ classdef ThermalWaveNumbers < handle
     
     function chiSquared = GoodnessOfFit(myself, analyticalSolution, weights)
     % Determines how good the current fitted values are
+    global dtcmchihistory;
       chiSquared = 0;
       for f = 1:myself.numberOfFrequencies
         phaseChiSquared = CalculateChiSquared(myself.phaseData(f,:), analyticalSolution.phases(f,:));
         if myself.amplitudeWeight > 0
           amplitudeChiSquared = CalculateChiSquared(myself.amplitudeData(f,:), analyticalSolution.amplitudes(f,:));
-          phaseScale = abs(max(analyticalSolution.phases(f,:)) - min(analyticalSolution.phases(f,:)));
-          amplitudeChiSquared = amplitudeChiSquared * phaseScale * myself.amplitudeWeight;
+          %phaseScale = abs(max(analyticalSolution.phases(f,:)) - min(analyticalSolution.phases(f,:)));
+          %amplitudeChiSquared = amplitudeChiSquared * phaseScale * myself.amplitudeWeight;
         else
           amplitudeChiSquared = 0;
         end
@@ -178,8 +190,9 @@ classdef ThermalWaveNumbers < handle
       end
       
       degreesOfFreedom = myself.numberOfFitParameters - 1;
-      chiSquared = chiSquared / degreesOfFreedom;
+      %chiSquared = chiSquared / degreesOfFreedom;
       myself.chiSquared = chiSquared;
+      dtcmchihistory = [dtcmchihistory chiSquared];
     end
 
     function analyticalSolution = IsotropicAnalysisStep(myself, currentFitValues)
@@ -262,6 +275,13 @@ classdef ThermalWaveNumbers < handle
         offsetAngle = offsetAngle + pi * delta;
         phases(f,:) = phases(f,:) - offsetAngle;
         amplitudes(f,:) = abs(solution) / max(abs(solution));
+        phaseMod = rad2deg(phases(f,:));
+        comparisons = [phaseMod, amplitudes(f,:)]';
+        if ~exist('comparisonAll', 'var')
+          comparisonAll = comparisons;
+        else
+          comparisonAll = [comparisonAll; comparisons];
+        end
       end
 
       % Scale to degrees
@@ -273,6 +293,8 @@ classdef ThermalWaveNumbers < handle
       analyticalSolution.amplitudes = amplitudes;
       analyticalSolution.phases = phases;
       myself.analyticalSolution = analyticalSolution;
+      myself.comparison = [myself.comparison, comparisonAll];
+      %myself.comparison = [myself.comparison; currentFitValues];
     end
 
     function halt = MinimizationPlot(myself, goodness, stepInformation, state) %#ok<INUSL>
@@ -315,6 +337,8 @@ classdef ThermalWaveNumbers < handle
           % Minimization has completed, finish up
           FinalizeAnalysisPlot(myself, true, true)
       end
+      
+      myself.interrupted = halt;
     end
   end
 
