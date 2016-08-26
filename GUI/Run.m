@@ -101,7 +101,7 @@ function Run_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.PhasePlot = subplot(1, 2, 1, 'Parent', handles.PlotsPlaceholder);
   title(handles.AmplitudePlot, 'Amplitude');
   title(handles.PhasePlot, 'Phase');
-  set(handles.AmplitudePlot, 'YScale', 'log');
+  %TODO Add context menu to plots for toggling grid lines or other options
 
   % Update handles structure
   guidata(hObject, handles);

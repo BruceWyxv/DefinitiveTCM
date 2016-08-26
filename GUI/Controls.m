@@ -459,6 +459,7 @@ end
 function [stagePosition, x, y, z] = DetermineStagePosition(handles)
 % Attempts to determine the current stage position from the absolute
 % coordinates of the stages
+  % Get the current coordinates
   coordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.current.StageController.xAxisID, ...
                                                                 handles.settings.current.StageController.yAxisID, ...
                                                                 handles.settings.current.StageController.zAxisID]);
@@ -468,6 +469,8 @@ function [stagePosition, x, y, z] = DetermineStagePosition(handles)
   position = -1;
   stagePosition = '';
   
+  % Determined the stage position
+  found = false;
   for i = 1:length(fields)
     location = locations.(fields{i});
     x = coordinates(1) - location(1);
@@ -475,6 +478,7 @@ function [stagePosition, x, y, z] = DetermineStagePosition(handles)
     z = coordinates(3) - location(3);
     if x >= -ranges.x && x <= ranges.x && y >= -ranges.y && y <= ranges.y
       position = i;
+      found = true;
       break;
     else
       x = 0;
@@ -483,10 +487,9 @@ function [stagePosition, x, y, z] = DetermineStagePosition(handles)
     end
   end
   
-  if position == -1
-    warning('GUI_Controls:UnknownPosition', 'Unable to determine the location of the stage. The stage will be move to the ''Sample Loading'' position');
-    stagePosition = 'SampleLoading';
-  else
+  % Are we in a location?
+  if found
+    % Convert to the internal system
     switch fields{position}
       case 'load'
         stagePosition = 'SampleLoading';
@@ -497,6 +500,8 @@ function [stagePosition, x, y, z] = DetermineStagePosition(handles)
       case 'scan'
         stagePosition = 'ScanningObjective';
     end
+  else
+    [stagePosition, x, y, z] = LocateStage(handles, coordinates, locations, ranges, fields);
   end
 end
 
@@ -626,6 +631,25 @@ function handles = LoadControls(handles, parent, controls)
 end
 
 
+function [stagePosition, x, y, z] = LocateStage(handles, coordinates, locations, ranges, fields)
+% The stage is in an invalid position, meaning that it is not within one of
+% the defined volumes. For now we will just move the stage to the Sample
+% loading position, but we may modify the code in the future
+  
+  % Move the axis, showing a progress bar
+  % Make sure to drop the Z axis down first, second move the X and Y axes,
+  % then finally move the Z axis to its final position
+  loadPosition = GetOrigin('SampleLoading', locations);
+  handles.stageController.UseFastSpeed();
+  handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, handles.settings.current.SoftStageBoundaries.z(1), true);
+  handles.stageController.MoveAxis([handles.settings.current.StageController.xAxisID, handles.settings.current.StageController.yAxisID], loadPosition(1:2), true);
+  handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, coordinates(3), true);
+  handles.stageController.UseSlowSpeed();
+  
+  [stagePosition, x, y, z] = DetermineStagePosition(handles);
+end
+
+
 function handles = MoveStageToCamera(handles)  %#ok<DEFNU>
   % First, open a modal progress bar while we are moving the stage. We
   % don't want the user to be able to change anything until the stage
@@ -647,7 +671,7 @@ function handles = MoveStageToCamera(handles)  %#ok<DEFNU>
     new = current + cameraOrigin;
     % Move the axis, showing a progress bar
     % Make sure to drop the Z axis down first, second move the X and Y axes,
-    % the finally move the Z axis to its final position
+    % then finally move the Z axis to its final position
     handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, handles.settings.current.SoftStageBoundaries.z(1), true);
     handles.stageController.MoveAxis([handles.settings.current.StageController.xAxisID, handles.settings.current.StageController.yAxisID], new(1:2), true);
     handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, new(3), true);

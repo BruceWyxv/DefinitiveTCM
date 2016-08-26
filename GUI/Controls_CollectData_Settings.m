@@ -22,7 +22,7 @@ function varargout = Controls_CollectData_Settings(varargin)
 
 % Edit the above text to modify the response to help Controls_CollectData_Settings
 
-% Last Modified by GUIDE v2.5 27-Apr-2016 12:05:03
+% Last Modified by GUIDE v2.5 26-Aug-2016 12:04:36
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -81,6 +81,7 @@ function Controls_CollectData_Settings_OpeningFcn(hObject, eventdata, handles, v
   set(handles.SkipFocusScanCheckbox, 'Value', handles.settings.DataScan.skipFocusScan);
   set(handles.ScanDirectionEdit, 'String', sprintf('%g', handles.settings.DataScan.scanDirection));
   set(handles.StepsEdit, 'String', sprintf('%i', handles.settings.DataScan.steps));
+  set(handles.LaserPowerEdit, 'String', sprintf('%g', handles.settings.FunctionGenerator.power));
 
   % Update handles structure
   guidata(hObject, handles);
@@ -153,6 +154,48 @@ function OKButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
   Close(hObject.Parent, handles, true);
+end
+
+
+function LaserPowerEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to LaserPowerEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+  % Hints: get(hObject,'String') returns contents of LaserPowerEdit as text
+  %        str2double(get(hObject,'String')) returns contents of LaserPowerEdit as a double
+  % Get the value, tha valid range is 1 to 100
+  window = [1, 100];
+  entry = get(hObject, 'String');
+  value = sscanf(entry, '%g', 1);
+  
+  % Sanitize the output
+  if value < window(1)
+    value = window(1);
+  elseif value > window(2)
+    value = window(2);
+  end
+  
+  % Set the clean value
+  handles.settings.FunctionGenerator.power = value;
+  clean = num2str(value);
+  set(hObject, 'String', clean);
+  
+  % Save the update
+  guidata(hObject.Parent, handles);
+end
+
+
+function LaserPowerEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to LaserPowerEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+  % Hint: edit controls usually have a white background on Windows.
+  %       See ISPC and COMPUTER.
+  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+      set(hObject,'BackgroundColor','white');
+  end
 end
 
 
@@ -247,3 +290,4 @@ function Close(myself, handles, saveSettings)
   
   delete(myself);
 end
+

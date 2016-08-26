@@ -297,6 +297,9 @@ function handles = ConnectHardware(handles)
                                                   handles.settings.current.StageController.yAxisSpeed, ...
                                                   handles.settings.current.StageController.zAxisSpeed]);
   handles.stageController.UseSlowSpeed();
+  
+  % Set the power setpoint for the pump laser
+  handles.pumpLaserController.SetPowerSetpoint(handles.settings.current.FunctionGenerator.power);
 end
 
 

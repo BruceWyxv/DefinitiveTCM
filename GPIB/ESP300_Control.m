@@ -37,7 +37,7 @@ classdef ESP300_Control < GPIB_Interface
       
       % Get the stage speeds
       myself.originalStageSpeeds = myself.GetStageSpeed(1:myself.maxStages);
-      myself.fastStageSpeeds = myself.originalStageSpeeds * 0.6;
+      myself.fastStageSpeeds = myself.originalStageSpeeds;
       myself.slowStageSpeeds = myself.originalStageSpeeds * 0.1;
       myself.UseSlowSpeed();
     end

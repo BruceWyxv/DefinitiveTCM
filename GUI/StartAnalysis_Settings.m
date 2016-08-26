@@ -282,6 +282,13 @@ function SkipErrorAnalysisCheckbox_Callback(hObject, eventdata, handles) %#ok<IN
 end
 
 
+function SkipErrorAnalysisCheckbox_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to SkipErrorAnalysisCheckbox (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+end
+
+
 function ToleranceEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to ToleranceEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB

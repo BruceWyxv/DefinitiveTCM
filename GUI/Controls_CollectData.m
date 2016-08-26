@@ -75,10 +75,12 @@ function AdvancedSettingsButton_Callback(hObject, eventdata, handles) %#ok<INUSL
 % handles    structure with handles and user data (see GUIDATA)
   settingsWindow = Controls_CollectData_Settings('Settings', handles.settings);
   uiwait(settingsWindow);
+  
+  % Update any hardware settings that can be impacted by changes in the 
+  handles.pumpLaserController.SetPowerSetpoint(handles.settings.current.FunctionGenerator.power);
 end
 
 
-% --- Executes on button press in ProbeLaserButton.
 function ProbeLaserButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to ProbeLaserButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -88,7 +90,6 @@ function ProbeLaserButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU
 end
 
 
-% --- Executes on button press in PumpLaserButton.
 function PumpLaserButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to PumpLaserButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB

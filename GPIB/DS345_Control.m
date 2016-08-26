@@ -13,7 +13,7 @@ classdef DS345_Control < GPIB_Interface
     frequency; % The pulse frequency
     isOn; % Boolean state for if the laser is on
     offset; % Signal offset
-    powerLevel; % Relative power level on a scale of 0 to 100
+    powerSetpoint; % Relative power level on a scale of 0 to 100
     voltage; % Signal amplitude
   end
   
@@ -32,6 +32,7 @@ classdef DS345_Control < GPIB_Interface
       myself.SendCommand('INVT 0');
       
       % Initialize the power to off
+      myself.powerSetpoint = 0;
       myself.TurnOff();
     end
     
@@ -41,36 +42,53 @@ classdef DS345_Control < GPIB_Interface
       myself.frequency = frequency;
     end
     
-    function SetPower(myself, powerLevel)
+    function SetPowerSetpoint(myself, powerLevel)
     % Sets the laser power, on a scale from 0 to 100
+      powerLevel = real(powerLevel);
       if powerLevel <= 0
         powerLevel = 0;
-        myself.isOn = false;
       elseif powerLevel > 100
         powerLevel = 100;
       end
       
-      voltagePP = (myself.maxVoltage - myself.minVoltage) * (powerLevel / 100) + myself.minVoltage;
-      myself.SetVoltage(voltagePP);
-      myself.powerLevel = powerLevel;
+      % Will we need to reset the function generator output?
+      reset = false;
+      if myself.powerSetpoint ~= powerLevel && myself.isOn
+        reset = true;
+      end
+      
+      % Update the setpoing
+      myself.powerSetpoint = powerLevel;
+      
+      % Reset if needed
+      if reset
+        myself.TurnOff();
+        myself.TurnOn();
+      end
     end
     
     function TurnOff(myself)
     % Turns the power off
-      myself.SetPower(0);
+      myself.SetVoltage(myself.GetVoltagePPFromPower(0));
       myself.SetFrequency(100);
       myself.isOn = false;
     end
     
     function TurnOn(myself)
-    % Turns the power on and sets the laser to a minimal output level
-      myself.SetPower(100);
+    % Turns the power on and sets the laser to  output level
+      myself.SetVoltage(myself.GetVoltagePPFromPower(myself.powerSetpoint));
       myself.SetFrequency(1e3);
       myself.isOn = true;
     end
   end
   
   methods (Access = protected)
+    function voltagePP = GetVoltagePPFromPower(myself, powerLevel)
+    % Converts the power from a scale of 0 to 100 into a peak-to-peak
+    % voltage for the function generator
+      voltagePP = (myself.maxVoltage - myself.minVoltage) * (powerLevel / 100) + myself.minVoltage;
+    end
+    
     function SendCommand(myself, command)
     % Sends a command, using the required line feed at the end although
     % tesing indicates that it is not actually needed.)
