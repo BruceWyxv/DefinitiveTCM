@@ -19,7 +19,7 @@ classdef ThermalWaveNumbers < handle
   
   properties (SetAccess = immutable, GetAccess = public)
     amplitudeData; % Data amplitude
-    amplitudeWeight; % Fractional weight applied when fitting the amplitude
+    fitAmplitudes; % Weigh the amplitude when fitting
     filmThickness; % Film thickness, in m
     fitMask; % Logical matrix identifying which seed parameters to fit, inverse mask (false = reject, true = accept)
     frequencies; % Data frequencies
@@ -29,13 +29,11 @@ classdef ThermalWaveNumbers < handle
     phaseOffsets; % Offset from original data
     positions; % Modified data positions so phases are centered about x = 0
     positionOffsets; % Offsets from original position vector
-    weights; % Weights of the phases
   end
   
   properties (SetAccess = private, GetAccess = private)
     analysisPlot; % A handle to a window that plots the intermediate values
     interrupted; % True if the analysis process was interrupted
-    comparison;
   end
   
   properties (SetAccess = private, GetAccess = public)
@@ -51,7 +49,7 @@ classdef ThermalWaveNumbers < handle
   methods
     function myself = ThermalWaveNumbers(data,...
                                          filmThickness,...
-                                         amplitudeWeight,...
+                                         fitAmplitudes,...
                                          fitMask,...
                                          preferences,...
                                          settings,...
@@ -73,15 +71,14 @@ classdef ThermalWaveNumbers < handle
       
       % Assign properties
       myself.fitMask = fitMask;
-      myself.amplitudeWeight = amplitudeWeight;
+      myself.fitAmplitudes = fitAmplitudes;
       myself.initialValues = initialValues;
       myself.numberOfFitParameters = sum(myself.fitMask);
       
       % Preformat the data
       [myself.positions, myself.positionOffsets,...
        myself.phaseData, myself.phaseOffsets,...
-       myself.amplitudeData,...
-       myself.weights] = ThermalWaveNumbers.Preformatting(data, myself.preferences, myself.settings);
+       myself.amplitudeData] = ThermalWaveNumbers.Preformatting(data, myself.settings);
       
       % Precalculate some values
       myself.absorbedPower = 1;
@@ -103,13 +100,12 @@ classdef ThermalWaveNumbers < handle
         standardError = -ones(1, myself.numberOfFrequencies);
       else
         % standard deviation of the residuals
-        if myself.amplitudeWeight > 0
+        if myself.fitAmplitudes
           degreesOfFreedom = myself.numberOfFrequencies * (myself.numberOfSteps + length(myself.amplitudeData(1,:)) - 2);
         else
           degreesOfFreedom = myself.numberOfFrequencies * (myself.numberOfSteps - 2);
         end
-        identityWeights = ones(1, myself.numberOfFrequencies);
-        sdr2 = myself.GoodnessOfFit(myself.analyticalSolution, identityWeights) / degreesOfFreedom;
+        sdr2 = myself.GoodnessOfFit(myself.analyticalSolution) / degreesOfFreedom;
 
         % jacobian matrix
         J = ThermalWaveNumbers.JacobianEstimation(myself.fitFunction, myself.currentValues(myself.fitMask));
@@ -133,7 +129,7 @@ classdef ThermalWaveNumbers < handle
       startValues = myself.initialValues(myself.fitMask);
       
       % Analyze the data
-      fitEvaluation = @(parameters) myself.GoodnessOfFit(myself.fitFunction(parameters), myself.weights);
+      fitEvaluation = @(parameters) myself.GoodnessOfFit(myself.fitFunction(parameters));
       problem.objective = fitEvaluation;
       problem.x0 = startValues;
       problem.solver = 'fminsearch';
@@ -142,13 +138,9 @@ classdef ThermalWaveNumbers < handle
                                  'OutputFcn', @myself.MinimizationPlot,...
                                  'TolFun', myself.settings.current.Analysis.tolerance,...
                                  'TolX', myself.settings.current.Analysis.tolerance);
-      global dtcmchihistory;
-      dtcmchihistory = [];
       [finalValues, finalGoodness, exitFlag, output] = fminsearch(problem);
       
       % Return the results
-      comparison = myself.comparison;
-      save('S:\Matlab\comp_suite.mat', 'comparison');
       allProperties = myself.initialValues;
       allProperties(myself.fitMask) = finalValues;
       fittedPropertiesMask = myself.fitMask;
@@ -173,26 +165,20 @@ classdef ThermalWaveNumbers < handle
       AnalysisProgress('Finalize', myself.analysisPlot, guidata(myself.analysisPlot), myself, success, showMessage);
     end
     
-    function chiSquared = GoodnessOfFit(myself, analyticalSolution, weights)
+    function chiSquared = GoodnessOfFit(myself, analyticalSolution)
     % Determines how good the current fitted values are
-    global dtcmchihistory;
       chiSquared = 0;
       for f = 1:myself.numberOfFrequencies
         phaseChiSquared = CalculateChiSquared(myself.phaseData(f,:), analyticalSolution.phases(f,:));
-        if myself.amplitudeWeight > 0
+        if myself.fitAmplitudes
           amplitudeChiSquared = CalculateChiSquared(myself.amplitudeData(f,:), analyticalSolution.amplitudes(f,:));
-          %phaseScale = abs(max(analyticalSolution.phases(f,:)) - min(analyticalSolution.phases(f,:)));
-          %amplitudeChiSquared = amplitudeChiSquared * phaseScale * myself.amplitudeWeight;
         else
           amplitudeChiSquared = 0;
         end
-        chiSquared = chiSquared + ((phaseChiSquared + amplitudeChiSquared) * weights(f));
+        chiSquared = chiSquared + phaseChiSquared + amplitudeChiSquared;
       end
       
-      degreesOfFreedom = myself.numberOfFitParameters - 1;
-      %chiSquared = chiSquared / degreesOfFreedom;
       myself.chiSquared = chiSquared;
-      dtcmchihistory = [dtcmchihistory chiSquared];
     end
 
     function analyticalSolution = IsotropicAnalysisStep(myself, currentFitValues)
@@ -275,13 +261,6 @@ classdef ThermalWaveNumbers < handle
         offsetAngle = offsetAngle + pi * delta;
         phases(f,:) = phases(f,:) - offsetAngle;
         amplitudes(f,:) = abs(solution) / max(abs(solution));
-        phaseMod = rad2deg(phases(f,:));
-        comparisons = [phaseMod, amplitudes(f,:)]';
-        if ~exist('comparisonAll', 'var')
-          comparisonAll = comparisons;
-        else
-          comparisonAll = [comparisonAll; comparisons];
-        end
       end
 
       % Scale to degrees
@@ -293,8 +272,6 @@ classdef ThermalWaveNumbers < handle
       analyticalSolution.amplitudes = amplitudes;
       analyticalSolution.phases = phases;
       myself.analyticalSolution = analyticalSolution;
-      myself.comparison = [myself.comparison, comparisonAll];
-      %myself.comparison = [myself.comparison; currentFitValues];
     end
 
     function halt = MinimizationPlot(myself, goodness, stepInformation, state) %#ok<INUSL>
@@ -490,8 +467,7 @@ classdef ThermalWaveNumbers < handle
     
     function [positions, positionOffsets,...
               phases, phaseOffsets,...
-              amplitudes,...
-              weights] = Preformatting(data, preferences, settings)
+              amplitudes] = Preformatting(data, settings)
     % Preformats all the data so that the curves are centered about x=0 and
     % offset so that the peak is at y=0
       numberOfSteps = length(data.positions);
@@ -503,8 +479,6 @@ classdef ThermalWaveNumbers < handle
       % We will evaluate only the central portion
       middle = round(numberOfSteps / 2);
       window = [(middle - 4), (middle + 4)];
-%       third = numberOfSteps / 3.0;
-%       window = uint8([ceil(third), floor(2 * third)]);
       fineStep = (actualPositions(window(2)) - actualPositions(window(1))) / 100;
       finePositions = actualPositions(window(1)):fineStep:actualPositions(window(2));
 
@@ -514,7 +488,6 @@ classdef ThermalWaveNumbers < handle
       positionOffsets = zeros(1, numberOfFrequencies);
       phases = zeros(numberOfFrequencies, numberOfSteps);
       positions = zeros(numberOfFrequencies, numberOfSteps);
-      weights = ones(1, numberOfFrequencies);
 
       % Loop over all the frequencies
       for f = 1:numberOfFrequencies
@@ -531,11 +504,6 @@ classdef ThermalWaveNumbers < handle
 
         % Normalize the amplitudes
         amplitudes(f,:) = data.amplitudes(f,:) / max(data.amplitudes(f,:));
-
-        % Calculate the weights
-        if preferences.current.Analysis.weightFrequencies == 1
-          weights(f) = (1.0 / min(phases(f,:)))^2;
-        end
       end
     end
 

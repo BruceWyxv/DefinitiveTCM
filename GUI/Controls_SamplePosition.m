@@ -140,6 +140,10 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
 end
 
 
+function SetControlState(handles, state) %#ok<INUSD,DEFNU>
+% Currently does nothing
+end
+
 function handles = UpdateCameraSelectionGroup(handles, data)
 % Processes all the commands associated with the camera selection group
   % Check to see if the camera view needs to change

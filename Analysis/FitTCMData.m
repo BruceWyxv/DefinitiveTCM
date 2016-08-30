@@ -30,17 +30,10 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
 %                   Notes:
 %                       1) 'Fast' will cap the maximum frequency at 50 kHz
 %                       2) Only 'Full' will perform any anisotropic fits
-%               * AmplitudeWeight   (default = <value from settings>)
-%                   Weight, relative to the phase, that will be applied for
-%                   fitting the amplitude. A value of 0 will not use any
-%                   weighting on the amplitude at all. A value of 1 will
-%                   give the amplitude just as much weight as the phase.
-%                   Note that this requires a scaling of the
-%                   goodness-of-fit on the amplitude values, as the
-%                   amplitudes are normalized. A value larger than 1 may be
-%                   used, but recognize that it will give undue emphasis to
-%                   fitting the amplitude. Values less than zero will be
-%                   assumed to be zero.
+%               * FitAmplitudes     (default = <value from settings>)
+%                   Boolean value that specifies if the amplitudes will be
+%                   used when calculating the goodness of fit. Otherwise
+%                   just the phase values will be used.
 %               * Magnification     (default = <value in data>)
 %                   Magnification of the objective used when collecting
 %                   data
@@ -80,7 +73,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   parser.addRequired('filmName', @ischar);
   parser.addRequired('filmThickness', @isnumeric);
   parser.addParameter('analysisModel', 'Fast', @ischar);
-  parser.addParameter('amplitudeWeight', -1, @isnumeric);
+  parser.addParameter('fitAmplitudes', -1, @isnumeric);
   parser.addParameter('magnification', -1, @isnumeric);
   parser.addParameter('preferences', '');
   parser.addParameter('settings', '');
@@ -100,7 +93,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
 
   % Assign additional values
   analysisModel = parser.Results.analysisModel;
-  amplitudeWeight = parser.Results.amplitudeWeight;
+  fitAmplitudes = parser.Results.fitAmplitudes;
   magnification = parser.Results.magnification;
   configManager = ConfigurationFileManager.GetInstance();
   if isempty(parser.Results.preferences)
@@ -119,14 +112,12 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   end
   substrateName = parser.Results.substrateName;
   
-  % Check for the default amplitude weight
-  if amplitudeWeight == -1
-    amplitudeWeight = preferences.current.Analysis.amplitudeWeight;
+  % Check for the default fit amplitude value
+  if fitAmplitudes == -1
+    fitAmplitudes = preferences.current.Analysis.fitAmplitudes;
   end
-  % Ensure that we always have a non-negative value
-  if amplitudeWeight < 0
-    amplitudeWeight = 0;
-  end
+  % Ensure that we always have a boolean value
+  fitAmplitudes = (fitAmplitudes == true);
 
   % Ensure the file is valid
   [directory, fileName, ~] = fileparts(dataFilePath);
@@ -226,7 +217,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   % Set up and run the analysis
   analyzer = ThermalWaveNumbers(data,...
                                 filmThickness,...
-                                amplitudeWeight,...
+                                fitAmplitudes,...
                                 fitMask,...
                                 preferences,...
                                 settings,...

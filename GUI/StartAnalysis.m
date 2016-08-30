@@ -22,7 +22,7 @@ function varargout = StartAnalysis(varargin)
 
 % Edit the above text to modify the response to help StartAnalysis
 
-% Last Modified by GUIDE v2.5 18-May-2016 18:00:52
+% Last Modified by GUIDE v2.5 30-Aug-2016 13:33:49
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -90,9 +90,9 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
   % Kapitza resistance
   handles.kapitzaResistances = handles.preferences.current.Analysis.kapitzaResistance;
   set(handles.KapitzaResistanceEdit, 'String', Num2Engr(handles.kapitzaResistances));
-  % Amplitude weight
-  handles.amplitudeWeight = handles.preferences.current.Analysis.amplitudeWeight;
-  set(handles.AmplitudeWeightEdit, 'String', Num2Engr(handles.amplitudeWeight));
+  % Fit Amplitudes
+  handles.fitAmplitudes = handles.settings.current.Analysis.fitAmplitudes;
+  set(handles.FitAmplitudesCheckbox, 'Value', handles.fitAmplitudes);
   % Magnification
   handles.magnification = handles.preferences.current.Analysis.magnification;
   % Model
@@ -118,8 +118,6 @@ function StartAnalysis_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<IN
   set(handles.SubstratePopup, 'Visible', substrateVisibility);
   set(handles.SubstrateText, 'Visible', substrateVisibility);
   set(handles.MaximumFrequencyEdit, 'String', Num2Engr(handles.maximumFrequency));
-  % Frequency-phase weighting
-  set(handles.WeightFrequenciesCheckbox, 'Value', handles.preferences.current.Analysis.weightFrequencies);
   
   % Refresh the magnification and materials popups
   handles = RefreshPopups(handles);
@@ -161,33 +159,24 @@ function AdvancedButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-function AmplitudeWeightEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to AmplitudeWeightEdit (see GCBO)
+function FitAmplitudesCheckbox_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to FitAmplitudesCheckbox (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-  % Hints: get(hObject,'String') returns contents of AmplitudeWeightEdit as text
-  %        str2double(get(hObject,'String')) returns contents of AmplitudeWeightEdit as a double
-  [clean, value] = CleanNumberString(get(hObject, 'String'));
-  set(hObject, 'String', clean);
-  handles.preferences.current.Analysis.amplitudeWeight = value;
+  % Hint: get(hObject,'Value') returns toggle state of SkipErrorAnalysisCheckbox
+  handles.fitAmplitudes = get(hObject, 'Value');
+  handles.settings.current.Analysis.fitAmplitudes = handles.fitAmplitudes;
   
-  % Set the data
-  handles.amplitudeWeight = value;
+  % Save the changes
   guidata(hObject.Parent, handles);
 end
 
 
-function AmplitudeWeightEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to AmplitudeWeightEdit (see GCBO)
+function FitAmplitudesCheckbox_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to FitAmplitudesCheckbox (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
-
-  % Hint: edit controls usually have a white background on Windows.
-  %       See ISPC and COMPUTER.
-  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-      set(hObject,'BackgroundColor','white');
-  end
 end
 
 
@@ -483,11 +472,17 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
                        handles.filmMaterial, ...
                        handles.filmThickness, ...
                        'AnalysisModel', handles.model,...
-                       'AmplitudeWeight', handles.amplitudeWeight, ...
+                       'FitAmplitudes', handles.fitAmplitudes, ...
                        'Magnification', handles.magnification, ...
                        'Preferences', handles.preferences, ...
                        'Settings', handles.settings, ...
                        'SubstrateName', handles.substrateName);
+  
+  % Apply the path as the current file for preferences if the run was
+  % completed
+  if results.fminsearchOutput.exitflag == 1
+    handles.preferences.current.CollectData.savePath = handles.file;
+  end
   
   % Display the data and prompt for save
   fittedValues = results.allProperties;
@@ -604,19 +599,6 @@ function SubstratePopup_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
   if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
       set(hObject,'BackgroundColor','white');
   end
-end
-
-
-function WeightFrequenciesCheckbox_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to WeightFrequenciesCheckbox (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-  % Hint: get(hObject,'Value') returns toggle state of WeightFrequenciesCheckbox
-  handles.preferences.current.Analysis.weightFrequencies = get(hObject, 'Value');
-  
-  % Save the changes
-  guidata(hObject.Parent, handles);
 end
 
 

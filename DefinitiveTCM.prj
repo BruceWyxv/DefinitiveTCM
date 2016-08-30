@@ -1,9 +1,9 @@
 <deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
-  <configuration build-checksum="3180508549" file="C:\Users\user\Desktop\DefinitiveTCM.git\DefinitiveTCM.prj" location="C:\Users\user\Desktop\DefinitiveTCM.git" name="DefinitiveTCM" preferred-package-location="C:\Users\user\Desktop\DefinitiveTCM\for_redistribution" preferred-package-type="package.type.exe" target="target.ezdeploy.standalone" target-name="Application Compiler">
+  <configuration build-checksum="1089249607" file="C:\mfiles\DefinitiveTCM-master\DefinitiveTCM.prj" location="C:\mfiles\DefinitiveTCM-master" name="DefinitiveTCM" preferred-package-location="C:\Users\user\Desktop\DefinitiveTCM\for_redistribution" preferred-package-type="package.type.exe" target="target.ezdeploy.standalone" target-name="Application Compiler">
     <param.appname>DefinitiveTCM</param.appname>
     <param.icon />
     <param.icons />
-    <param.version>0.1</param.version>
+    <param.version>0.9</param.version>
     <param.authnamewatermark>Brycen Wendt</param.authnamewatermark>
     <param.email>wendbryc@isu.edu</param.email>
     <param.company>Idaho National Laboratory</param.company>
@@ -68,31 +68,46 @@
       <file>${PROJECT_ROOT}\Resources</file>
     </fileset.package>
     <fileset.depfun>
+      <file>${PROJECT_ROOT}\Analysis\FitProperties.m</file>
+      <file>${PROJECT_ROOT}\Analysis\FitTCMData.m</file>
+      <file>${PROJECT_ROOT}\Analysis\ThermalWaveNumbers.m</file>
       <file>${PROJECT_ROOT}\GPIB\DS345_Control.m</file>
       <file>${PROJECT_ROOT}\GPIB\ESP300_Control.m</file>
       <file>${PROJECT_ROOT}\GPIB\GPIB_Interface.m</file>
       <file>${PROJECT_ROOT}\GPIB\ProbeLaser_Control.m</file>
       <file>${PROJECT_ROOT}\GPIB\SR830_Control.m</file>
+      <file>${PROJECT_ROOT}\GUI\AnalysisProgress.fig</file>
+      <file>${PROJECT_ROOT}\GUI\AnalysisProgress.m</file>
       <file>${PROJECT_ROOT}\GUI\Controls.fig</file>
       <file>${PROJECT_ROOT}\GUI\Controls.m</file>
       <file>${PROJECT_ROOT}\GUI\Controls_CollectData.m</file>
+      <file>${PROJECT_ROOT}\GUI\Controls_CollectData_Settings.fig</file>
+      <file>${PROJECT_ROOT}\GUI\Controls_CollectData_Settings.m</file>
       <file>${PROJECT_ROOT}\GUI\Controls_SamplePosition.m</file>
       <file>${PROJECT_ROOT}\GUI\ImageToggle.m</file>
+      <file>${PROJECT_ROOT}\GUI\LookAndFeel.m</file>
       <file>${PROJECT_ROOT}\GUI\Main.fig</file>
       <file>${PROJECT_ROOT}\GUI\Main.m</file>
       <file>${PROJECT_ROOT}\GUI\Run.fig</file>
       <file>${PROJECT_ROOT}\GUI\Run.m</file>
+      <file>${PROJECT_ROOT}\GUI\StartAnalysis.fig</file>
+      <file>${PROJECT_ROOT}\GUI\StartAnalysis.m</file>
+      <file>${PROJECT_ROOT}\GUI\StartAnalysis_Settings.fig</file>
+      <file>${PROJECT_ROOT}\GUI\StartAnalysis_Settings.m</file>
       <file>${PROJECT_ROOT}\GUI\uiwaitbar.m</file>
+      <file>${PROJECT_ROOT}\Utilities\CalculateChiSquared.m</file>
+      <file>${PROJECT_ROOT}\Utilities\CleanNumberString.m</file>
+      <file>${PROJECT_ROOT}\Utilities\ConfigurationFile.m</file>
+      <file>${PROJECT_ROOT}\Utilities\ConfigurationFileManager.m</file>
       <file>${PROJECT_ROOT}\Utilities\Database.m</file>
-      <file>${PROJECT_ROOT}\Utilities\Files.m</file>
       <file>${PROJECT_ROOT}\Utilities\FitGaussian.m</file>
       <file>${PROJECT_ROOT}\Utilities\gaussian.m</file>
+      <file>${PROJECT_ROOT}\Utilities\GetColormap.m</file>
       <file>${PROJECT_ROOT}\Utilities\Images.m</file>
-      <file>${PROJECT_ROOT}\Utilities\ini2struct.m</file>
       <file>${PROJECT_ROOT}\Utilities\isFloatEqual.m</file>
+      <file>${PROJECT_ROOT}\Utilities\Num2Engr.m</file>
       <file>${PROJECT_ROOT}\Utilities\Properties.m</file>
       <file>${PROJECT_ROOT}\Utilities\Strings.m</file>
-      <file>${PROJECT_ROOT}\Utilities\struct2ini.m</file>
     </fileset.depfun>
     <build-deliverables>
       <file location="C:\Users\user\Desktop\DefinitiveTCM\for_testing" name="readme.txt" optional="true">C:\Users\user\Desktop\DefinitiveTCM\for_testing\readme.txt</file>
