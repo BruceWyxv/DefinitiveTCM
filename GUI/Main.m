@@ -290,12 +290,12 @@ function handles = ConnectHardware(handles)
                                              
   % Set the travel velocities of the stages - fast speed is 5 times faster
   % than slow speed
-  handles.stageController.ScaleSlowSpeed(stageIDs, [handles.settings.current.StageController.xSpeedScale(1), ...
-                                                    handles.settings.current.StageController.ySpeedScale(1), ...
-                                                    handles.settings.current.StageController.zSpeedScale(1)]);
-  handles.stageController.ScaleFastSpeed(stageIDs, [handles.settings.current.StageController.xSpeedScale(2), ...
-                                                    handles.settings.current.StageController.ySpeedScale(2), ...
-                                                    handles.settings.current.StageController.zSpeedScale(2)]);
+  handles.stageController.SetFastSpeed(stageIDs, [handles.settings.current.StageController.xAxisSpeed, ...
+                                                  handles.settings.current.StageController.yAxisSpeed, ...
+                                                  handles.settings.current.StageController.zAxisSpeed] * 5);
+  handles.stageController.SetSlowSpeed(stageIDs, [handles.settings.current.StageController.xAxisSpeed, ...
+                                                  handles.settings.current.StageController.yAxisSpeed, ...
+                                                  handles.settings.current.StageController.zAxisSpeed]);
   handles.stageController.UseSlowSpeed();
   
   % Set the power setpoint for the pump laser
@@ -342,7 +342,6 @@ function HomeSampleStages(handles)
     handles.stageController.SetLimits(zAxis, [-1000, 1000]);
     handles.stageController.SetToZero([xAxis, yAxis, zAxis]);
     originalPositions.z = handles.stageController.HomeAxis(zAxis);
-    handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, handles.settings.current.SafeTraverseHeight.z, true);
     originalPositions.x = handles.stageController.HomeAxis(xAxis);
     originalPositions.y = handles.stageController.HomeAxis(yAxis);
     

@@ -143,52 +143,6 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
-    function ScaleFastSpeed(myself, axes, scale)
-    % Set the fast speed of the requested axis to a scale of the maximum
-    % speed
-      if ~myself.IsValidAxes(axes)
-        return;
-      end
-      
-      if length(scale) ~= length(axes)
-        if isempty(scale)
-          warning('ESP300_Control:NoScale', 'No scale value provided, not setting slow speed value.');
-          return;
-        end
-        if length(scale) ~= 1
-          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''scale'', must be either ''1'' or equal to the number of ''axes'' specified.');
-        end
-        scale = ones(1, length(axes)) * scale(1);
-      end
-        
-      for a = 1:length(axes)
-        myself.fastStageSpeeds(a) = myself.originalStageSpeeds(a) * scale(a);
-      end
-    end
-    
-    function ScaleSlowSpeed(myself, axes, scale)
-    % Set the slow speed of the requested axis to a scale of the maximum
-    % speed
-      if ~myself.IsValidAxes(axes)
-        return;
-      end
-      
-      if length(scale) ~= length(axes)
-        if isempty(scale)
-          warning('ESP300_Control:NoScale', 'No scale value provided, not setting slow speed value.');
-          return;
-        end
-        if length(scale) ~= 1
-          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''scale'', must be either ''1'' or equal to the number of ''axes'' specified.');
-        end
-        scale = ones(1, length(axes)) * scale(1);
-      end
-        
-      for a = 1:length(axes)
-        myself.slowStageSpeeds(a) = myself.originalStageSpeeds(a) * scale(a);
-      end
-    end
-    
     function SetFastSpeed(myself, axes, speed)
     % Set the current speed of the requested axis
       if ~myself.IsValidAxes(axes)

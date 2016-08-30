@@ -104,8 +104,7 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
   % Disable all the controls
-  handles.IsBusy = true;
-  Controls('SetControlState', handles);
+  Controls('SetControlState', handles, 'off');
   success = false;
   
   % Get the information for the data collection
@@ -171,8 +170,7 @@ function RunScanButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
   end
   
   % Enable all the controls
-  handles.IsBusy = false;
-  Controls('SetControlState', handles);
+  Controls('SetControlState', handles, 'on');
 end
 
 
@@ -384,10 +382,9 @@ function SetControlState(handles, state) %#ok<DEFNU>
                  handles.SaveFolderBrowseButton,...
                  handles.SampleInfoButton,...
                  handles.PumpLaserButton,...
-                 handles.ProbeLaserButton];
+                 handles.ProbeLaserButton,...
+                 handles.RunScanButton];
   set(findall(allControls, '-property', 'Enable'), 'Enable', state);
-  
-  UpdateRun(handles);
 end
 
 
@@ -451,7 +448,7 @@ end
 
 function UpdateRun(handles)
 % Enable/disable the "Run" button depending on the laser states
-  if handles.probeLaserPower && handles.pumpLaserPower && ~handles.IsBusy
+  if handles.probeLaserPower && handles.pumpLaserPower
     state = 'On';
   else
     state = 'Off';
