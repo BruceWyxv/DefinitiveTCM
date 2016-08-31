@@ -1,0 +1,30 @@
+ANALYSIS
+Include progress bar for error analysis
+Correct discrepancies in the "fast" analysis method
+Remove dependance on Materials in database and add the ability to enter in material constants manually
+
+USER FEEDBACK
+Stage motors are moving and/or still
+Initiallization of hardware when first connecting
+
+GUI MODIFICATIONS
+Right-click context menu to turn grid lines on/off for data plots (Collect Data & Analysis)
+Show "Sample Loading" camera when the stange is moving between positions
+Complete the "Save Snapshot" and "Save Video" items for the camera view screens
+Increase font size of axis labels on plots
+Lock parent windows when child windows are opened
+Change the Analysis window so it changes based on the required inputs for the selected analysis model (the model should be the first item a user selects, and then the remaining items change depending on which model is chosen)
+
+DATABASE
+Add row for units
+Correct the symbol for diffusion from 'd' to 'D'
+
+UTILITIES
+Laser power calibration
+Origin calibration for Wide<->Scan positions
+Volume and origin calibrations (with details and boundary checking from Rob's spreadsheet)
+
+FUTURE
+Furnace power/temperature controls
+Stage height detection to prevent crashing into the scan objective
+Toggle to include furnace height for crash protection and set expected focus height
