@@ -384,6 +384,15 @@ function [data, success] = Data(handles) %#ok<DEFNU>
   phases = NaN(numberOfFrequencies, steps);
   phasePoints = NaN(numberOfFrequencies, 1);
   redoTest = true;
+  % Newer settings files will have a slow scan frequency cut-off value.
+  % Detect if it is there and use it if so to perform slower scans at lower
+  % frequencues.
+  if isfield(handles.settings.current.DataScan, 'slowScanFrequencyCutoff')
+    slowScanFrequencyCutoff = handles.settings.current.DataScan.slowScanFrequencyCutoff;
+    slowScanLockInAmpTimeConstant = handles.settings.current.DataScan.slowScanLockInAmpTimeConstant;
+  else
+    slowScanFrequencyCutoff = -1;
+  end
 
   % Set up the window and prepare the plots
   uiwaitbar(handles.ProgressBar, 0);
@@ -437,7 +446,11 @@ function [data, success] = Data(handles) %#ok<DEFNU>
     
     % Set up the equipment
     handles.pumpLaserController.SetFrequency(frequency);
-    handles.lockInAmpController.SetTimeConstantValue(timeConstant);
+    if frequency <= slowScanFrequencyCutoff
+      handles.lockInAmpController.SetTimeConstantValue(slowScanLockInAmpTimeConstant);
+    else
+      handles.lockInAmpController.SetTimeConstantValue(timeConstant);
+    end
     handles.lockInAmpController.Chill();
     
     for i = 1:steps

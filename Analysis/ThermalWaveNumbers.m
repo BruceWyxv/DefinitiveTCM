@@ -43,6 +43,7 @@ classdef ThermalWaveNumbers < handle
     elapsedTime; % Amount of time spent in the analysis
     iterations; % The number of iterations the solutions has performed
     previousValues; % The values from th previous iteration
+    standardError; % Values from the standard error calculation
     timer; % A timer user to measure the duration of an analysis
   end
   
@@ -63,6 +64,7 @@ classdef ThermalWaveNumbers < handle
       myself.numberOfSteps = length(data.positions(1,:));
       myself.preferences = preferences;
       myself.settings = settings;
+      myself.standardError = 0;
       
       % Cache frequently used settings
       myself.frequencyOffsetLimit = settings.current.Analysis.frequencyOffsetLimit;
@@ -99,28 +101,33 @@ classdef ThermalWaveNumbers < handle
       if myself.settings.current.Analysis.skipErrorAnalysis || myself.interrupted
         standardError = -ones(1, myself.numberOfFrequencies);
       else
-        % standard deviation of the residuals
-        if myself.fitAmplitudes
-          degreesOfFreedom = myself.numberOfFrequencies * (myself.numberOfSteps + length(myself.amplitudeData(1,:)) - 2);
+        if length(myself.standardError) == 1
+          % standard deviation of the residuals
+          if myself.fitAmplitudes
+            degreesOfFreedom = myself.numberOfFrequencies * (myself.numberOfSteps + length(myself.amplitudeData(1,:)) - 2);
+          else
+            degreesOfFreedom = myself.numberOfFrequencies * (myself.numberOfSteps - 2);
+          end
+          sdr2 = myself.GoodnessOfFit(myself.analyticalSolution) / degreesOfFreedom;
+
+          % jacobian matrix
+          J = ThermalWaveNumbers.JacobianEstimation(myself.fitFunction, myself.currentValues(myself.fitMask));
+
+          % I'll be lazy here, and use inv. Please, no flames,
+          % if you want a better approach, look in my tips and
+          % tricks doc.
+          Sigma2 = sdr2*inv(J'*J);
+
+          % Parameter standard errors
+          se2 = sqrt(diag(Sigma2))';
+
+          % which suggest rough confidence intervalues around
+          % the parameters might be...
+          standardError = 2 * se2;
+          myself.standardError = standardError;
         else
-          degreesOfFreedom = myself.numberOfFrequencies * (myself.numberOfSteps - 2);
+          standardError = myself.standardError;
         end
-        sdr2 = myself.GoodnessOfFit(myself.analyticalSolution) / degreesOfFreedom;
-
-        % jacobian matrix
-        J = ThermalWaveNumbers.JacobianEstimation(myself.fitFunction, myself.currentValues(myself.fitMask));
-
-        % I'll be lazy here, and use inv. Please, no flames,
-        % if you want a better approach, look in my tips and
-        % tricks doc.
-        Sigma2 = sdr2*inv(J'*J);
-
-        % Parameter standard errors
-        se2 = sqrt(diag(Sigma2))';
-
-        % which suggest rough confidence intervalues around
-        % the parameters might be...
-        standardError = 2 * se2;
       end
     end
     

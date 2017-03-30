@@ -530,6 +530,11 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
   switch choice
     case 'Yes'
       overwrite = false;
+      filters = {strcat('*.',  excelExtension), 'Excel Spreadsheet';...
+                 '*.*', 'All Files'};
+      [file, directory, ~] = uiputfile(filters, 'Save Data File...', excelFile);
+      excelFile = fullfile(directory, file);
+      
       while exist(excelFile, 'file') && ~overwrite && ~strcmp(choice, 'Cancel');
         message = sprintf('File ''%s'' already exists.\n\nWhat would you like to do?', excelFile);
         choice = questdlg(message, 'File exists!', 'Overwrite', 'Cancel', 'Change Name', 'Overwrite');
@@ -538,9 +543,7 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
             saveFile = false;
             
           case 'Change Name'
-            filters = {strcat('*.',  excelExtension), 'Excel Spreadsheet';...
-                       '*.*', 'All Files'};
-            [file, directory, ~] = uigetfile(filters, 'Save Data File...', excelFile);
+            [file, directory, ~] = uiputfile(filters, 'Save Data File...', excelFile);
             excelFile = fullfile(directory, file);
             
           case 'Overwrite'

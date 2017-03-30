@@ -43,11 +43,21 @@ classdef SR830_Control < GPIB_Interface
     end
     
     function Chill(myself)
-    % Wait 6 time constants so that the readings stabilize
+    % Wait 7 time constants so that the readings stabilize
      pause(myself.chillTime);
     end
     
     function amplitude = GetAmplitude(myself)
+    % Get the amplitude of the matching signal
+      amplitude = 0;
+      samples = 5;
+      for i = 1:samples
+        amplitude = amplitude + myself.GetAmplitudeSingle();
+      end
+      amplitude = amplitude / samples;
+    end
+    
+    function amplitude = GetAmplitudeSingle(myself)
     % Get the amplitude of the matching signal
       amplitude = myself.GetSignalValue(myself.amplitudeOutputIndex);
     end
@@ -148,7 +158,7 @@ classdef SR830_Control < GPIB_Interface
       try
         value = myself.valueOfTimeConstantIndex(index);
         GPIB_Interface.Communicate(myself, sprintf('OFLT %i', index));
-        myself.chillTime = value * 6;
+        myself.chillTime = value * 7;
       catch
         warning('SR830_Control:BadTimeConstantIndex', 'Ignoring value');
       end

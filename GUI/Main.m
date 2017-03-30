@@ -22,7 +22,7 @@ function varargout = Main(varargin)
 
 % Edit the above text to modify the response to help Main
 
-% Last Modified by GUIDE v2.5 07-Apr-2016 09:42:53
+% Last Modified by GUIDE v2.5 30-Mar-2017 11:36:40
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -209,6 +209,11 @@ end
 function handles = CascadeActionPower(handles, powerOn)
 % This function changes the states of GUI elements as needed by the current
 % power state.
+  % Let the user know that we are connecting and disable other buttons
+  set(handles.SystemPower, 'Visible', 'Off');
+  set(handles.RunAnalysis, 'Enable', 'Off');
+  set(handles.Connecting, 'Visible', 'On');
+  
   % Connect to, or disconnect, from the hardware
   if powerOn
     try
@@ -216,6 +221,9 @@ function handles = CascadeActionPower(handles, powerOn)
     catch me
       warning('Main:PowerOn', me.message);
       handles = DisconnectHardware(handles);
+      set(handles.SystemPower, 'Visible', 'On');
+      set(handles.Connecting, 'Visible', 'Off');
+      set(handles.RunAnalysis, 'Enable', 'On');
       return;
     end
   else
@@ -242,6 +250,9 @@ function handles = CascadeActionPower(handles, powerOn)
   set(handles.ToolsAndUtilities, 'Visible', 'Off'); % Not yet implemented
   set(handles.PositionSample, 'Enable', state);
   set(handles.CollectData, 'Enable', state);
+  set(handles.SystemPower, 'Visible', 'On');
+  set(handles.Connecting, 'Visible', 'Off');
+  set(handles.RunAnalysis, 'Enable', 'On');
 
   % Set the global power state
   handles.power = powerOn;
