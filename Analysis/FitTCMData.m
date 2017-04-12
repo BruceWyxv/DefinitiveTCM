@@ -223,6 +223,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
                                 settings,...
                                 initialValues);
   [allProperties, fittedPropertiesMask, chiSquared, fminsearchOutput] = analyzer.Run();
+  results.analyzer = analyzer;
   results.allProperties = allProperties;
   results.fittedPropertiesMask = fittedPropertiesMask;
   results.chiSquared = chiSquared;

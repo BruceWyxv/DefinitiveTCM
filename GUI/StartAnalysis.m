@@ -484,7 +484,7 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
     handles.preferences.current.CollectData.savePath = handles.file;
   end
   
-  % Display the data and prompt for save
+  % Summarize the fitting results
   fittedValues = results.allProperties;
   mask = results.fittedPropertiesMask;
   finalChiSquared = results.chiSquared;
@@ -521,7 +521,7 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
     message{p + 4} = sprintf('%s%s:   %s', maskIndicator, propertyNames{p}, values{p});
   end
   
-  % Ask the user if they want to save
+  % Display the results and ask the user if they want to save
   saveFile = true;
   excelExtension = 'xlsx';
   [directory, fileName, ~] = fileparts(handles.file);
