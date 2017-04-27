@@ -15,7 +15,7 @@ function StartDefinitiveTCM
       LookAndFeel();
     else
       % Ensure that the GUI elements are in path
-      oldPath = addpath('Analysis', 'GPIB', 'GUI','Utilities');
+      oldPath = addpath('Analysis', 'GUI', 'HardwareInterfaces', 'Utilities');
     end
       
     % Start the program and wait until it completes

@@ -42,28 +42,19 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
 %               * Settings          (default: load 'Resources/Settings.ini')
 %                   Handle to settings configuration class
 %               **** Note: If the defaults are used for both Preferences
-%                    and Settings, then FitTCMData will assume that it has
+%                    and Settings then FitTCMData will assume that it has
 %                    been started in independent mode and will force a save
 %                    and close of these files when it has finished.
 %               * SubstrateName     (default = <data file name>)
 %
 % Outputs:      results
-%               A structure containing the following fields, depending on
-%               the input arguments and requested analysis modes:
-%                 ks:     thermal conductivity of the substrate
-%                 ds:     thermal diffusivity of the substrate
-%                 rth:    thermal (Kapitza) resistance at the
-%                         film-substrate interface
-%                 spot:   convolved spotsize of the pump and probe lasers
-%                 kf:     thermal conductivity of the film
-%                 df:     thermal diffusivity of the film
-%                 ks2D:   anisotropic thermal conductivity of the substrate
-%                         in the second direction
-%                 ds2D:   anisotropic thermal diffusivity of the substrate
-%                         in the second direction
+%               A structure containing the results of the optimization
 %
-% File:         FitThermalAnisotropy.m Author:       Brycen Wendt
-% (brycen.wendt@inl.gov; wendbryc@isu.edu) Date Created: 09/30/2015
+% File:         FitTCMData.m
+% Author:       Brycen Wendt (wendbryc+inl@isu.edu)
+% Created:      09/30/2015
+% Modified:     04/12/2017
+
   % Get the databases and utilities
   database = Database();
 
@@ -114,7 +105,7 @@ function results = FitTCMData(dataFilePath, filmName, filmThickness, varargin)
   
   % Check for the default fit amplitude value
   if fitAmplitudes == -1
-    fitAmplitudes = preferences.current.Analysis.fitAmplitudes;
+    fitAmplitudes = settings.current.Analysis.fitAmplitudes;
   end
   % Ensure that we always have a boolean value
   fitAmplitudes = (fitAmplitudes == true);
