@@ -22,7 +22,7 @@ function varargout = Main(varargin)
 
 % Edit the above text to modify the response to help Main
 
-% Last Modified by GUIDE v2.5 30-Mar-2017 11:36:40
+% Last Modified by GUIDE v2.5 27-Apr-2017 10:53:57
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -116,7 +116,7 @@ function MainWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFN
     handles.preferences.current.WindowPositions.main = currentPosition(1:2);
   end
 
-% Hint: delete(hObject) closes the figure
+  % Hint: delete(hObject) closes the figure
   delete(hObject);
 end
 
@@ -124,6 +124,75 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
+function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to CollectData (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  if ~SwitchIfOpen(handles, handles.CollectDataGUIAddOn);
+    handles.ControlGUI =...
+      Controls('AddOn', handles.CollectDataGUIAddOn,...
+               'Cameras', handles.cameras,...
+               'InterfaceController', handles.interfaceController,...
+               'LaserScanController', handles.laserScanController,...
+               'LockInAmpController', handles.lockInAmpController,...
+               'MainWindow', handles.output,...
+               'Preferences', handles.preferences,...
+               'ProbeLaserController', handles.probeLaserController,...
+               'PumpLaserController', handles.pumpLaserController,...
+               'Settings', handles.settings,...
+               'StageController', handles.stageController);
+
+    % Update handles structure
+    guidata(hObject, handles);
+  end
+end
+
+
+function FilmThickness_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
+% hObject    handle to FilmThickness (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  handles.filmThicknessGUI = ...
+    FilmThickness('InterfaceController', handles.interfaceController,...
+                  'LockInAmpController', handles.lockInAmpController,...
+                  'Preferences', handles.preferences,...
+                  'PumpLaserController', handles.pumpLaserController,...
+                  'Settings', handles.settings);
+end
+
+
+function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
+% hObject    handle to PositionSample (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  % Open the Controls window with the PositionSample add-on
+  % Controls is modal, which means that Main will be blocked until
+  % Controls closes.
+  if ~SwitchIfOpen(handles, handles.PositionSampleGUIAddOn);
+    handles.ControlGUI =...
+      Controls('AddOn', handles.PositionSampleGUIAddOn,...
+               'Cameras', handles.cameras,...
+               'InterfaceController', handles.interfaceController,...
+               'MainWindow', handles.output,...
+               'Preferences', handles.preferences,...
+               'Settings', handles.settings,...
+               'StageController', handles.stageController);
+
+    % Update handles structure
+    guidata(hObject, handles);
+  end
+end
+
+
+function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to RunAnalysis (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  handles.analysisGUI = StartAnalysis('Preferences', handles.preferences,...
+                                      'Settings', handles.settings);
+end
+
+
 function SystemPower_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 % hObject    handle to SystemPower (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -142,64 +211,10 @@ function SystemPower_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
 end
 
 
-function PositionSample_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
-% hObject    handle to PositionSample (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  % Open the Controls window with the PositionSample add-on
-  % Controls is modal, which means that Main will be blocked until
-  % Controls closes.
-  if ~SwitchIfOpen(handles, handles.PositionSampleGUIAddOn);
-    handles.ControlGUI =...
-      Controls('AddOn', handles.PositionSampleGUIAddOn,...
-               'Cameras', handles.cameras,...
-               'MainWindow', handles.output,...
-               'Preferences', handles.preferences,...
-               'Settings', handles.settings,...
-               'StageController', handles.stageController);
-
-    % Update handles structure
-    guidata(hObject, handles);
-  end
-end
-
-
 function ToolsAndUtilities_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSD>
 % hObject    handle to ToolsAndUtilities (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-end
-
-
-function CollectData_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to CollectData (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  if ~SwitchIfOpen(handles, handles.CollectDataGUIAddOn);
-    handles.ControlGUI =...
-      Controls('AddOn', handles.CollectDataGUIAddOn,...
-               'Cameras', handles.cameras,...
-               'LaserScanController', handles.laserScanController,...
-               'LockInAmpController', handles.lockInAmpController,...
-               'MainWindow', handles.output,...
-               'Preferences', handles.preferences,...
-               'ProbeLaserController', handles.probeLaserController,...
-               'PumpLaserController', handles.pumpLaserController,...
-               'Settings', handles.settings,...
-               'StageController', handles.stageController);
-
-    % Update handles structure
-    guidata(hObject, handles);
-  end
-end
-
-
-function RunAnalysis_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to RunAnalysis (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-  handles.analysisGUI = StartAnalysis('Preferences', handles.preferences,...
-                                      'Settings', handles.settings);
 end
 
 
@@ -250,6 +265,7 @@ function handles = CascadeActionPower(handles, powerOn)
   set(handles.ToolsAndUtilities, 'Visible', 'Off'); % Not yet implemented
   set(handles.PositionSample, 'Enable', state);
   set(handles.CollectData, 'Enable', state);
+  set(handles.FilmThickness, 'Enable', state);
   set(handles.SystemPower, 'Visible', 'On');
   set(handles.Connecting, 'Visible', 'Off');
   set(handles.RunAnalysis, 'Enable', 'On');
@@ -261,6 +277,10 @@ end
 function handles = ConnectHardware(handles)
 % Connect to the hardware. Anything added here MUST have a corresponding
 % disconnect statement in DisconnectHardware()
+  % Configure the interface controller and set it to an empty state
+  handles.interfaceController = InterfaceChassis_Control('Majordomo');
+  handles.interfaceController.ConfigureForNothing();
+  
   % Set up the cameras and Matrox device
   handles.cameras.load = videoinput('matrox', handles.settings.current.ImageAcquisition.loadDigitizer);
   handles.cameras.wide = videoinput('matrox', handles.settings.current.ImageAcquisition.wideDigitizer);
@@ -316,7 +336,7 @@ end
 
 function handles = DisconnectHardware(handles)
 % Disconnect the hardware by setting the handles to empty. The individual
-% classes will automtically disconnect the hardware when deleted.
+% classes will automtically disconnect from the hardware when deleted.
   handles.cameras.load = '';
   handles.cameras.wide = '';
   handles.cameras.scan = '';
@@ -325,6 +345,7 @@ function handles = DisconnectHardware(handles)
   handles.probeLaserController = '';
   handles.pumpLaserController = '';
   handles.stageController = '';
+  handles.interfaceController = '';
 end
 
 
@@ -345,6 +366,9 @@ function HomeSampleStages(handles)
     error('Stages will not be homed. Connection to the stage controller failed.');
   else
     uiwait(warndlg({'Ensure it is safe to home the stages.'; 'Click ''OK'' to proceed.'}, 'Check sample', 'modal'));
+    
+    % Turn on the LED lights
+    handles.interfaceController.SetIllumination(true);
     
     % Home the Z axis first so that we can drop it all the way to 0 and
     % ensure the safe movement of the X and Y axes without fear of crashing
@@ -376,6 +400,9 @@ function HomeSampleStages(handles)
     
     handles.stageController.SetLimits(zAxis, handles.settings.current.SoftStageBoundaries.z);
     handles.stageController.UseSlowSpeed();
+    
+    % Turn off the LED lights
+    handles.interfaceController.SetIllumination(false);
   end
 end
 

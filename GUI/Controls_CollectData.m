@@ -352,6 +352,7 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   % last since it takes the longest and we want the GUI window to show the
   % inital state correctly
   handles.CameraPosition = 'ScanningObjective';
+  handles.interfaceController.ConfigureForPositionScan();
   handles = Controls('SwitchCamera', handles);
   handles = Controls('MoveStageToCamera', handles);
 end

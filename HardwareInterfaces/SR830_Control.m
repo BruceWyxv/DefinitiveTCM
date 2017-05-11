@@ -47,12 +47,17 @@ classdef SR830_Control < GPIB_Interface
      pause(myself.chillTime);
     end
     
-    function amplitude = GetAmplitude(myself)
+    function amplitude = GetAmplitude(myself, numberOfSamples)
     % Get the amplitude of the matching signal
       amplitude = 0;
-      samples = 5;
+      if nargin == 1
+        samples = 5;
+      else
+        samples = numberOfSamples;
+      end
       for i = 1:samples
         amplitude = amplitude + myself.GetAmplitudeSingle();
+        %pause(myself.GetTimeConstantValue());
       end
       amplitude = amplitude / samples;
     end
@@ -112,7 +117,7 @@ classdef SR830_Control < GPIB_Interface
     
     function value = GetTimeConstantValue(myself)
     % Get the numerical value, in s, of the current time constant
-      value = myself.timeConstantValue(myself.GeTimeConstantIndex());
+      value = myself.valueOfTimeConstantIndex;
     end
     
     function SetAuxOutputVoltage(myself, index, voltage)

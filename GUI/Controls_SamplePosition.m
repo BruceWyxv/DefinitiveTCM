@@ -155,12 +155,15 @@ function handles = UpdateCameraSelectionGroup(handles, data)
       switch get(data.NewValue, 'Tag');
         case 'SampleLoadPositionRadio'
           handles.CameraPosition = 'SampleLoading';
+          handles.interfaceController.ConfigureForPositionSampleLoad();
 
         case 'WideImagePositionRadio'
           handles.CameraPosition = 'WideImage';
+          handles.interfaceController.ConfigureForPositionWideImage();
 
         case 'ScanObjectivePositionRadio'
           handles.CameraPosition = 'ScanningObjective';
+          handles.interfaceController.ConfigureForPositionScan();
       end
     end
   end
@@ -198,6 +201,7 @@ function handles = UpdateLinkCheckbox(handles)
     % The stage position and camera view are at different locations, so
     % disable the link ability
     set(handles.LinkStageToCameraCheckbox, 'Enable', 'off');
+    handles.interfaceController.ConfigureForPositionUnknown();
   end
   
   % Update the preferences

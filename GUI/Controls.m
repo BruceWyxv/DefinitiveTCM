@@ -65,6 +65,7 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     parser.addParameter('preferences', '', @(x) isa(x, 'ConfigurationFile'));
     parser.addParameter('settings', '', @(x) isa(x, 'ConfigurationFile'));
     parser.addParameter('stageController', '', @(x) isa(x, 'ESP300_Control'));
+    parser.addOptional('interfaceController', '');
     parser.addOptional('laserScanController', '');
     parser.addOptional('lockInAmpController', '');
     parser.addOptional('probeLaserController', '');
@@ -83,6 +84,7 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
     handles.lockInAmpController = parser.Results.lockInAmpController;
     handles.mainWindow = parser.Results.mainWindow;
     handles.preferences = parser.Results.preferences;
+    handles.interfaceController = parser.Results.interfaceController;
     handles.probeLaserController = parser.Results.probeLaserController;
     handles.pumpLaserController = parser.Results.pumpLaserController;
     handles.settings = parser.Results.settings;
@@ -175,6 +177,9 @@ function ControlsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,
   if currentPosition(1:2) ~= handles.preferences.current.WindowPositions.controls
     handles.preferences.current.WindowPositions.controls = currentPosition(1:2);
   end
+  
+  % We don't need any hardware, so close down shop for the time being
+  handles.interfaceController.ConfigureForNothing();
   
   % Allow the add-on window to close its elements properly
   addOnHandle = str2func(handles.addOn.Tag);
@@ -500,15 +505,19 @@ function [stagePosition, x, y, z] = DetermineStagePosition(handles)
     switch fields{position}
       case 'load'
         stagePosition = 'SampleLoading';
+        handles.interfaceController.ConfigureForPositionSampleLoad();
 
       case 'wide'
         stagePosition = 'WideImage';
+        handles.interfaceController.ConfigureForPositionWideImage();
 
       case 'scan'
         stagePosition = 'ScanningObjective';
+        handles.interfaceController.ConfigureForPositionScan();
     end
   else
     stagePosition = 'SampleLoading';
+    handles.interfaceController.ConfigureForPositionSampleLoad();
     LocateStageAtSampleLoading(handles, GetOrigin(stagePosition, locations));
   end
 end
@@ -734,13 +743,26 @@ function MoveStageToSliderPosition(axis, slider, handles)
   switch axis
     case 1
       relativeAxis = handles.settings.current.StageController.xAxisID;
+      if handles.settings.current.ReverseTravel.x ~= 0
+        relativePosition = -relativePosition;
+      end
+      handles.preferences.current.CurrentCoordinates.x = relativePosition;
       
     case 2
       relativeAxis = handles.settings.current.StageController.yAxisID;
+      if handles.settings.current.ReverseTravel.y ~= 0
+        relativePosition = -relativePosition;
+      end
+      handles.preferences.current.CurrentCoordinates.y = relativePosition;
       
     case 3
       relativeAxis = handles.settings.current.StageController.zAxisID;
+      if handles.settings.current.ReverseTravel.z ~= 0
+        relativePosition = -relativePosition;
+      end
+      handles.preferences.current.CurrentCoordinates.z = relativePosition;
   end
+  
   absolutePosition = origin + relativePosition;
   handles.stageController.MoveAxis(relativeAxis, absolutePosition);
 end
