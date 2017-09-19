@@ -93,7 +93,7 @@ function MoveStageToCameraButton_Callback(hObject, eventdata, handles) %#ok<DEFN
 % hObject    handle to MoveStageToCameraButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  handles = Controls('MoveStageToCamera', handles);
+  [handles, ~] = Controls('MoveStageToCamera', handles);
   handles = UpdateLinkCheckbox(handles);
   guidata(hObject, handles);
 end
@@ -152,30 +152,41 @@ function handles = UpdateCameraSelectionGroup(handles, data)
       handles.CameraPosition = data;
     else
       % Select the camera
-      switch get(data.NewValue, 'Tag');
+      switch get(data.NewValue, 'Tag')
         case 'SampleLoadPositionRadio'
           handles.CameraPosition = 'SampleLoading';
-          handles.interfaceController.ConfigureForPositionSampleLoad();
 
         case 'WideImagePositionRadio'
           handles.CameraPosition = 'WideImage';
-          handles.interfaceController.ConfigureForPositionWideImage();
 
         case 'ScanObjectivePositionRadio'
           handles.CameraPosition = 'ScanningObjective';
-          handles.interfaceController.ConfigureForPositionScan();
       end
     end
   end
   
-  handles = Controls('SwitchCamera', handles);
-  
   % Check if we need to reposition the stage
   if get(handles.LinkStageToCameraCheckbox, 'Value') == 1 && ~strcmp(handles.CameraPosition, handles.StagePosition)
+    % Show the outside view if we are moving the stage
+    temporaryCameraPositionHolder = handles.CameraPosition;
+    handles.CameraPosition = 'SampleLoading';
+    handles = Controls('SwitchCamera', handles);
+    handles.CameraPosition = temporaryCameraPositionHolder;
+    
     % The stage position and camera view are different, and the stage
     % position is linked to the camera view, so move the stage
-    handles = Controls('MoveStageToCamera', handles);
+    [handles, returnToSampleLoadingPosition] = Controls('MoveStageToCamera', handles);
+    
+    if returnToSampleLoadingPosition
+      handles.StagePosition = '';
+      handles.CameraPosition = 'SampleLoading';
+      [handles, ~] = Controls('MoveStageToCamera', handles);
+      set(handles.SampleLoadPositionRadio, 'Value', 1);
+    end
   end
+  
+  % Switch the camera to the requested view point
+  handles = Controls('SwitchCamera', handles);
   
   % Set the link checkbox to a valid state
   handles = UpdateLinkCheckbox(handles);

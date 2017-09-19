@@ -7,6 +7,7 @@ classdef ConfigurationFile < handle
   end
   
   properties (SetAccess = public, GetAccess = public)
+    cache; % Runtime settings not to be put in a file
     current; % Current settings
   end
   
@@ -32,40 +33,39 @@ classdef ConfigurationFile < handle
     
     function OutputINI(fileName, settingsStructure)
     % Converts a structure into an ini-type file.
-      % Modified from: http://www.mathworks.com/matlabcentral/fileexchange/22079-struct2ini
+    % Modified from: http://www.mathworks.com/matlabcentral/fileexchange/22079-struct2ini
+      % Open file, or create new file, for writing
+      iniFile = fopen(fileName, 'w');
 
-        % Open file, or create new file, for writing
-        iniFile = fopen(fileName, 'w');
+      listOfSections = fieldnames(settingsStructure);
 
-        listOfSections = fieldnames(settingsStructure);
+      for i = 1:length(listOfSections)
+        % Get the section name
+        section = char(listOfSections(i));
 
-        for i = 1:length(listOfSections)
-          % Get the section name
-          section = char(listOfSections(i));
+        % Get the field for the section
+        member = settingsStructure.(section);
+        % Check if member is a struct or value
+        if isstruct(member)
+          % We found a section, print the section header
+          ConfigurationFile.PrintSection(iniFile, section);
 
-          % Get the field for the section
-          member = settingsStructure.(section);
-          % Check if member is a struct or value
-          if isstruct(member)
-            % We found a section, print the section header
-            ConfigurationFile.PrintSection(iniFile, section);
-
-            % Get a list of the section fields and print each one
-            listOfFields = fieldnames(member);
-            for j = 1:length(listOfFields)
-              name = char(listOfFields(j));
-              value = settingsStructure.(section).(name);
-              ConfigurationFile.PrintKeyValue(iniFile, name, value);
-            end
-          else
-            % This is just a value, so print it as-is
-            value = member;
-            name = section;
+          % Get a list of the section fields and print each one
+          listOfFields = fieldnames(member);
+          for j = 1:length(listOfFields)
+            name = char(listOfFields(j));
+            value = settingsStructure.(section).(name);
             ConfigurationFile.PrintKeyValue(iniFile, name, value);
           end
+        else
+          % This is just a value, so print it as-is
+          value = member;
+          name = section;
+          ConfigurationFile.PrintKeyValue(iniFile, name, value);
         end
+      end
 
-        fclose(iniFile);
+      fclose(iniFile);
     end
     
     function settingsStructure = ParseINI(fileName)

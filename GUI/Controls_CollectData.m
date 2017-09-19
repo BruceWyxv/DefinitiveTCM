@@ -354,7 +354,7 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   handles.CameraPosition = 'ScanningObjective';
   handles.interfaceController.ConfigureForPositionScan();
   handles = Controls('SwitchCamera', handles);
-  handles = Controls('MoveStageToCamera', handles);
+  [handles, ~] = Controls('MoveStageToCamera', handles);
 end
 
 

@@ -145,11 +145,11 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   % but do not move the stages yet. Wait until the user has released the
   % cursor before actually moving the stages.
   addlistener(handles.XSlider, 'Value', 'PreSet',...
-    @(~, ~) TrackSlider2Edit(handles.XSlider, handles.XEdit, handles.positionRanges(1,:)));
+    @(~, ~) TrackSlider2Edit(handles.XSlider, handles.XEdit, handles, 1));
   addlistener(handles.YSlider, 'Value', 'PreSet',...
-    @(~, ~) TrackSlider2Edit(handles.YSlider, handles.YEdit, handles.positionRanges(2,:)));
+    @(~, ~) TrackSlider2Edit(handles.YSlider, handles.YEdit, handles, 2));
   addlistener(handles.ZSlider, 'Value', 'PreSet',...
-    @(~, ~) TrackSlider2Edit(handles.ZSlider, handles.ZEdit, handles.positionRanges(3,:)));
+    @(~, ~) TrackSlider2Edit(handles.ZSlider, handles.ZEdit, handles, 3));
   
   % Set the motor controls and relative speeds
   set(handles.Small, 'Value', 1);
@@ -621,7 +621,8 @@ function handles = LoadAddOn(figure, handles)
   
   % Attempt to determine the stage position if it is currently unknown
   if ~isfield(handles, 'StagePosition') || isempty(handles.StagePosition)
-    [handles.StagePosition, x, y, z] = DetermineStagePosition(handles);
+    [stagePosition, x, y, z] = DetermineStagePosition(handles);
+    handles.StagePosition = stagePosition;
     if ~isempty(handles.StagePosition)
       set(handles.XEdit, 'String', num2str(x));
       set(handles.YEdit, 'String', num2str(y));
@@ -664,12 +665,13 @@ function LocateStageAtSampleLoading(handles, loadPosition)
 end
 
 
-function handles = MoveStageToCamera(handles)  %#ok<DEFNU>
+function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  %#ok<DEFNU>
   % First, open a modal progress bar while we are moving the stage. We
   % don't want the user to be able to change anything until the stage
   % movement is complete. Also, disable the close functionality (a user
   % should not be able to prematurely close the window while the process is
   % still completing.
+  returnToSampleLoadingPosition = false;
   
   % Only move the stages if we are not at the same location
   if ~strcmp(handles.StagePosition, handles.CameraPosition)
@@ -686,9 +688,27 @@ function handles = MoveStageToCamera(handles)  %#ok<DEFNU>
 
     % Get the current stage positions
     if fromSampleLoading
-      current = [handles.preferences.current.CurrentCooridnates.x, ...
-                 handles.preferences.current.CurrentCooridnates.y, ...
-                 handles.preferences.current.CurrentCooridnates.z];
+      % Perform crash prevention
+      handles.interfaceController.ConfigureForSampleHeightMeasurement();
+      returnToSampleLoadingPosition = PerformCrashPrevention(handles);
+      
+      if returnToSampleLoadingPosition
+        handles.IsBusy = false;
+        SetControlState(handles);
+        return;
+      end
+      
+      % Update the position ranges
+      positionRangeZ = [handles.settings.cache.zStageLimits(1) - handles.settings.cache.sampleTop, ...
+                        handles.settings.cache.sampleTop - handles.settings.cache.zStageLimits(2)];
+      handles.positionRanges = [handles.settings.current.PositionRanges.x; ...
+                                handles.settings.current.PositionRanges.y; ...
+                                positionRangeZ];
+      
+      % Set the coordinates
+      current = [handles.preferences.current.CurrentCoordinates.x, ...
+                 handles.preferences.current.CurrentCoordinates.y, ...
+                 handles.preferences.current.CurrentCoordinates.z];
       handles.EnableMotors = true;
     else
       current = [str2double(get(handles.XEdit, 'String')) ...
@@ -702,6 +722,18 @@ function handles = MoveStageToCamera(handles)  %#ok<DEFNU>
         
         handles.EnableMotors = false;
       end
+    end
+    
+    % Update interface
+    switch handles.CameraPosition
+      case 'SampleLoading'
+        handles.interfaceController.ConfigureForPositionSampleLoad();
+        
+      case 'WideImage'
+        handles.interfaceController.ConfigureForPositionWideImage();
+        
+      case 'ScanningObjective'
+        handles.interfaceController.ConfigureForPositionScan();
     end
     
     % Get the new origin and calculate the new position
@@ -765,6 +797,98 @@ function MoveStageToSliderPosition(axis, slider, handles)
   
   absolutePosition = origin + relativePosition;
   handles.stageController.MoveAxis(relativeAxis, absolutePosition);
+end
+
+
+function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
+% Perform the crash prevention routine
+  % Open the window to track the progress
+  profileHandle = CrashPrevention('Settings', handles.settings);
+  
+  done = false;
+  returnToSampleLoadingPosition = false;
+  x = handles.settings.current.CrashPrevention.stageEdge;
+  scanWidth = handles.settings.current.CrashPrevention.scanWidth;
+  startX = x;
+  endX = startX - scanWidth;
+  centerX = (startX + endX) / 2;
+  y = handles.settings.current.CrashPrevention.stageHeight - 1;
+  softVerticalLimits = handles.settings.original.SoftStageBoundaries.z;
+  endY = softVerticalLimits(1);
+  step = handles.settings.current.CrashPrevention.stepSize;
+  trace = (handles.settings.current.CrashPrevention.trace == 1);
+  stageHeightAtHighestTracePoint = softVerticalLimits(2);
+  firstEdge = 0;
+  while ~done
+    % Strangely enough, the axis mappings for the profiling are:
+    %   x -> Y stage
+    %   y -> Z stage
+    isBlocked = IsLocationBlocked(handles, x, y);
+    returnToSampleLoadingPosition = CrashPrevention('Update', profileHandle, x - centerX, y, isBlocked);
+    
+    if isBlocked % Move up
+      % Set the value to the highest found point
+      if y < stageHeightAtHighestTracePoint && firstEdge > 5
+        stageHeightAtHighestTracePoint = y;
+      end
+      
+      y = y - step;
+      if y < softVerticalLimits(1)
+        % This could indicate that the sample height may exceed the limits
+        % of the TCM. Throw and error/warning message here instead?
+        y = softVerticalLimits(1);
+        x = x - step;
+      end
+    else % Move across
+      x = x - step;
+      firstEdge = firstEdge + 1;
+      
+      if trace
+        while ~isBlocked && ~returnToSampleLoadingPosition 
+          y = y + step;
+          % Break the loop if it will exceed the soft stage limits
+          if y > softVerticalLimits(2)
+            break
+          end
+          
+          isBlocked = IsLocationBlocked(handles, x, y);
+          returnToSampleLoadingPosition = CrashPrevention('Update', profileHandle, x - centerX, y, isBlocked);
+        end
+        y = y - step;
+      end
+    end
+    
+    % Check to see if we've scanned the breadth of the stage
+    xDone = x < endX;
+    yDone = y < endY;
+    done = xDone || yDone || returnToSampleLoadingPosition;
+  end
+  
+  CrashPrevention('Close', profileHandle);
+  
+  % Update the soft limits on the stage controller
+  softVerticalLimits(2) = stageHeightAtHighestTracePoint ... The lowest value that the stage had to be at to clear the beam
+                          + handles.settings.current.CrashPrevention.wiggleRoom ... Some space to breath
+                          - handles.settings.current.CrashPrevention.offset... The vertical distance between the slot detector beam and the objective working distance
+                          + handles.settings.current.CrashPrevention.heaterOffset; % Allow the heated stage to move up so that the microscope objective is inside of it a certain distance
+  handles.settings.cache.zStageLimits = softVerticalLimits;
+  handles.settings.cache.sampleTop = stageHeightAtHighestTracePoint;
+  
+  % Adjust the current coordinate height so that it will match the 0 point
+  % of the wide and scan positions
+  handles.settings.current.PositionOrigins.scan(3) = stageHeightAtHighestTracePoint - handles.settings.current.CrashPrevention.offset;
+  handles.settings.current.PositionOrigins.wide(3) = handles.settings.current.PositionOrigins.scan(3) +  handles.settings.current.CrashPrevention.wideOffsetToScan;
+  
+  % Set the limits
+  handles.stageController.SetLimits(handles.settings.current.StageController.zAxisID, softVerticalLimits); 
+end
+
+
+function isBlocked = IsLocationBlocked(handles, x, y)
+% Determines if a point is blocking the slot detector beam
+  handles.stageController.MoveAxis([handles.settings.current.StageController.yAxisID, handles.settings.current.StageController.zAxisID], [x, y]);
+  value = handles.lockInAmpController.GetAuxInputValue(handles.settings.current.CrashPrevention.inputChannel);
+  isBlocked = value > handles.settings.current.CrashPrevention.blockedCutoffVoltage;
 end
 
 
@@ -905,10 +1029,10 @@ function StepRightSmall(slider, eventdata, handles, Slider_Callback)
 end
 
 
-function TrackSlider2Edit(slider, edit, boundaries)
+function TrackSlider2Edit(slider, edit, handles, axis)
 % Updates the values of the edit boxes according to the values entered in
 % the sliders.
-  value = ConvertSlider2Position(slider, boundaries);
+  value = ConvertSlider2Position(slider, handles.positionRanges(axis,:));
   set(edit, 'String', sprintf('%g', value));
 end
 
@@ -927,7 +1051,6 @@ function handles = SwitchCamera(handles) %#ok<DEFNU>
 
   % Start the camera video feed
   if ~isempty(handles.currentCameraFeed)
-    stoppreview(handles.currentCameraFeed);
     closepreview(handles.currentCameraFeed);
   end
   preview(newCamera, handles.CameraView);
@@ -998,7 +1121,7 @@ end
 function UpdateSlider2Edit(slider, axis, edit, handles)
 % Updates the values of the edit boxes according to the values of the
 % sliders.
-  TrackSlider2Edit(slider, edit, handles.positionRanges(axis,:))
+  TrackSlider2Edit(slider, edit, handles, axis)
   
   MoveStageToSliderPosition(axis, slider, handles);
 end
