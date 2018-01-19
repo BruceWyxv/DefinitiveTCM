@@ -100,6 +100,9 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.CameraView = image(zeros(640, 480, 3));
   handles.CameraView.UIContextMenu = handles.CameraViewContextMenu;
   handles.currentCameraFeed = '';
+  handles.CameraPosition = 'SampleLoading';
+  handles = SwitchCamera(handles);
+  handles.StagePosition = '';
   
   % Set some parameters
   handles.positionRanges = [handles.settings.current.PositionRanges.x; ...
@@ -620,15 +623,7 @@ function handles = LoadAddOn(figure, handles)
   set(figure, 'Name', name);
   
   % Attempt to determine the stage position if it is currently unknown
-  if ~isfield(handles, 'StagePosition') || isempty(handles.StagePosition)
-    [stagePosition, x, y, z] = DetermineStagePosition(handles);
-    handles.StagePosition = stagePosition;
-    if ~isempty(handles.StagePosition)
-      set(handles.XEdit, 'String', num2str(x));
-      set(handles.YEdit, 'String', num2str(y));
-      set(handles.ZEdit, 'String', num2str(z));
-    end
-  end
+  handles = UpdateCurrentPositionToControls(handles);
   
   % Initialize any controls created
   addOnHandle = str2func(handles.addOn.Tag);
@@ -745,6 +740,7 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
     handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, handles.settings.current.SafeTraverseHeight.z, true);
     handles.stageController.MoveAxis([handles.settings.current.StageController.xAxisID, handles.settings.current.StageController.yAxisID], new(1:2), true);
     handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, new(3), true);
+    handles = UpdateCurrentPositionToControls(handles);
 
     % The stage should now be in the camera's field-of-view
     handles.StagePosition = handles.CameraPosition;
@@ -1056,6 +1052,23 @@ function handles = SwitchCamera(handles) %#ok<DEFNU>
   preview(newCamera, handles.CameraView);
   axis image; % Preserve the aspect ratio
   handles.currentCameraFeed = newCamera;
+end
+
+
+function handles = UpdateCurrentPositionToControls(handles)
+% Update the values of the edit boxes with the current values from the
+% stages themselves
+  [stagePosition, x, y, z] = DetermineStagePosition(handles);
+  handles.StagePosition = stagePosition;
+  if ~isempty(handles.StagePosition)
+    set(handles.XEdit, 'String', num2str(x));
+    set(handles.YEdit, 'String', num2str(y));
+    set(handles.ZEdit, 'String', num2str(z));
+
+    UpdateEdit2Slider(handles.XEdit, handles.XSlider, handles.positionRanges(1,:));
+    UpdateEdit2Slider(handles.YEdit, handles.YSlider, handles.positionRanges(2,:));
+    UpdateEdit2Slider(handles.ZEdit, handles.ZSlider, handles.positionRanges(3,:));
+  end
 end
 
 

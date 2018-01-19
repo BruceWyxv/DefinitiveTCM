@@ -22,7 +22,9 @@ l = 488e-9;  % Wavelength of light
 
 % Define material optical properties, all values are @ 488nm
 n0 = 1;               % Index of refraction of air
-ns = 1.48;            % Index of refraction of substrate (pyrex)
+%ns = 1.48;            % Index of refraction of substrate (pyrex)
+ns = 1.52;            % Index of refraction of substrate (BK7)
+%ns = 1.436;            % Index of refraction of substrate (CaF2)
 ks = 0;               % Imaginary part of index of refraction of substrate
 ng = 1.09;            % Index of refraction of gold
 kg = 1.8;             % Imaginary part of index of refraction of gold

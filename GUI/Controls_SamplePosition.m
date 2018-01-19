@@ -116,7 +116,7 @@ function handles = InitializeChildren(handles) %#ok<DEFNU>
   handles.CameraPosition = 'SampleLoading';
   
   % Initialize the position controls
-  if isempty(handles.StagePosition);
+  if ~isfield(handles, 'StagePosition') || isempty(handles.StagePosition)
     % The stage is in an invalid state, deselect all positions radio
     % buttons
     set(findall(handles.CameraSelectionGroup, '-property', 'Value'), 'Value', 0);
@@ -168,10 +168,12 @@ function handles = UpdateCameraSelectionGroup(handles, data)
   % Check if we need to reposition the stage
   if get(handles.LinkStageToCameraCheckbox, 'Value') == 1 && ~strcmp(handles.CameraPosition, handles.StagePosition)
     % Show the outside view if we are moving the stage
-    temporaryCameraPositionHolder = handles.CameraPosition;
-    handles.CameraPosition = 'SampleLoading';
-    handles = Controls('SwitchCamera', handles);
-    handles.CameraPosition = temporaryCameraPositionHolder;
+    if ~strcmp(handles.CameraPosition, 'SampleLoading')
+      temporaryCameraPositionHolder = handles.CameraPosition;
+      handles.CameraPosition = 'SampleLoading';
+      handles = Controls('SwitchCamera', handles);
+      handles.CameraPosition = temporaryCameraPositionHolder;
+    end
     
     % The stage position and camera view are different, and the stage
     % position is linked to the camera view, so move the stage
@@ -190,6 +192,9 @@ function handles = UpdateCameraSelectionGroup(handles, data)
   
   % Set the link checkbox to a valid state
   handles = UpdateLinkCheckbox(handles);
+  
+  % Update the edit boxes
+  handles = Controls('UpdateCurrentPositionToControls', handles);
 end
 
 
