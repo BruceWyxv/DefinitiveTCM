@@ -177,16 +177,20 @@ function ControlsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,
 % handles    structure with handles and user data (see GUIDATA)
   % Check to see if the user moved the window at all
   currentPosition = getpixelposition(hObject);
-  if currentPosition(1:2) ~= handles.preferences.current.WindowPositions.controls
-    handles.preferences.current.WindowPositions.controls = currentPosition(1:2);
+  
+  % Check to see if 'handles' is in a valid state
+  if isfield(handles, 'preferences')
+    if currentPosition(1:2) ~= handles.preferences.current.WindowPositions.controls
+      handles.preferences.current.WindowPositions.controls = currentPosition(1:2);
+    end
+    
+    % We don't need any hardware, so close down shop for the time being
+    handles.interfaceController.ConfigureForNothing();
+
+    % Allow the add-on window to close its elements properly
+    addOnHandle = str2func(handles.addOn.Tag);
+    addOnHandle('CleanUpForClose', handles);
   end
-  
-  % We don't need any hardware, so close down shop for the time being
-  handles.interfaceController.ConfigureForNothing();
-  
-  % Allow the add-on window to close its elements properly
-  addOnHandle = str2func(handles.addOn.Tag);
-  addOnHandle('CleanUpForClose', handles);
   
   delete(hObject);
 end
@@ -489,8 +493,17 @@ function [stagePosition, x, y, z] = DetermineStagePosition(handles)
   for i = 1:length(fields)
     location = locations.(fields{i});
     x = coordinates(1) - location(1);
+    if handles.settings.current.ReverseTravel.x == 1
+      x = -x;
+    end
     y = coordinates(2) - location(2);
+    if handles.settings.current.ReverseTravel.y == 1
+      y = -y;
+    end
     z = coordinates(3) - location(3);
+    if handles.settings.current.ReverseTravel.z == 1
+      z = -z;
+    end
     if x >= ranges.x(1) && x <= ranges.x(2) && y >= ranges.y(1) && y <= ranges.y(2) && z >= ranges.z(1) && z <= ranges.z(2)
       position = i;
       found = true;
@@ -1032,7 +1045,7 @@ function TrackSlider2Edit(slider, edit, handles, axis)
   set(edit, 'String', sprintf('%g', value));
 end
 
-function handles = SwitchCamera(handles) %#ok<DEFNU>
+function handles = SwitchCamera(handles) 
 % Selects a new camera for the video feed
   switch handles.CameraPosition
     case 'SampleLoading'
@@ -1047,6 +1060,11 @@ function handles = SwitchCamera(handles) %#ok<DEFNU>
 
   % Start the camera video feed
   if ~isempty(handles.currentCameraFeed)
+    % Return if we are already using this camera feed, nothing to do
+    if newCamera == handles.currentCameraFeed
+      return;
+    end
+    
     closepreview(handles.currentCameraFeed);
   end
   preview(newCamera, handles.CameraView);

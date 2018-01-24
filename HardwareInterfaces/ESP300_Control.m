@@ -10,35 +10,114 @@ classdef ESP300_Control < GPIB_Interface
   properties (SetAccess = immutable, GetAccess = public)
     activeStages; % Logical array of active stages
     originalStageSpeeds; % Speed of the stages upon loading the class
-  end
-  
-  properties (Constant = true, GetAccess = public)
-    maxStages = 3; % The maximum ID of stages available
+    originalStageAccels; % Accelerations of the stages upon loading the class
   end
   
   properties (SetAccess = private, GetAccess = public)
+    maxStages; % The maximum ID of stages available
+    slowStageAccels; % Fast stage accelerations
     slowStageSpeeds; % Fast stage speeds
+    fastStageAccels; % Slow stage accelerations
     fastStageSpeeds; % Slow stage speeds
   end
   
   methods
-    function myself = ESP300_Control(address, name)
+    function myself = ESP300_Control(settings, name)
     % Construct this class and call the superclass constructor to initialze
     % the interface to the device
       if nargin < 2
         name = GPIB_Interface.GetUnknownDeviceName();
       end
-      myself@GPIB_Interface(address, name);
+      myself@GPIB_Interface(settings.address, name);
       
       % Turn on the system and check for active stages
+      myself.maxStages = settings.numberOfAxes;
       myself.activeStages = ones(1, myself.maxStages); % Assume all stages are active
       myself.activeStages = ~strcmp(strtrim(myself.Query(1:myself.maxStages, 'ID')), 'Unknown'); % Block out inactive stages
       myself.TurnOnMotor(1:myself.maxStages);
       
       % Get the stage speeds
+      myself.originalStageAccels = myself.GetStageAcceleration(1:myself.maxStages);
       myself.originalStageSpeeds = myself.GetStageSpeed(1:myself.maxStages);
-      myself.fastStageSpeeds = myself.originalStageSpeeds;
-      myself.slowStageSpeeds = myself.originalStageSpeeds * 0.1;
+      if isfield(settings, 'xAxisID')
+        if ((isfield(settings, 'xDefaultAcceleration') ... 
+              && myself.originalStageAccels(settings.xAxisID) ~= settings.xDefaultAcceleration) ...
+            || (isfield(settings, 'xDefaultSpeed') ... 
+                && myself.originalStageSpeeds(settings.xAxisID) ~= settings.xDefaultSpeed))
+          % Maybe throw a warning here?
+          disp(['X-axis found do have non-default movement values. ' ...
+       char(13) 'This may occur when either 1) the system has has ' ...
+       char(13) 'been restarted after a crash, or 2) if the stage has ' ...
+       char(13) 'been changed out. For (1) don''t worry. For (2), ' ...
+       char(13) 'please update the file "Settings.ini" with the new ' ...
+       char(13) 'values.']);
+          myself.originalStageAccels(settings.xAxisID) = settings.xDefaultAcceleration;
+          myself.originalStageSpeeds(settings.xAxisID) = settings.xDefaultSpeed;
+        end
+        accelerationScale = [0.1, 1.0];
+        if isfield(settings, 'xAccelScale')
+          accelerationScale = settings.xSpeedScale;
+        end
+        speedScale = [0.1, 1.0];
+        if isfield(settings, 'xSpeedScale')
+          speedScale = settings.xSpeedScale;
+        end
+        myself.ScaleSlowSpeed(settings.xAxisID, accelerationScale(1), speedScale(1));
+        myself.ScaleFastSpeed(settings.xAxisID, accelerationScale(2), speedScale(2));
+      end
+      if isfield(settings, 'yAxisID')
+        if ((isfield(settings, 'yDefaultAcceleration') ... 
+              && myself.originalStageAccels(settings.yAxisID) ~= settings.yDefaultAcceleration) ...
+            || (isfield(settings, 'yDefaultSpeed') ... 
+                && myself.originalStageSpeeds(settings.yAxisID) ~= settings.yDefaultSpeed))
+          % Maybe throw a warning here?
+          disp(['Y-axis found do have non-default movement values. ' ...
+       char(13) 'This may occur when either 1) the system has has ' ...
+       char(13) 'been restarted after a crash, or 2) if the stage has ' ...
+       char(13) 'been changed out. For (1) don''t worry. For (2), ' ...
+       char(13) 'please update the file "Settings.ini" with the new ' ...
+       char(13) 'values.']);
+          myself.originalStageAccels(settings.yAxisID) = settings.yDefaultAcceleration;
+          myself.originalStageSpeeds(settings.yAxisID) = settings.yDefaultSpeed;
+        end
+        accelerationScale = [0.1, 1.0];
+        if isfield(settings, 'yAccelScale')
+          accelerationScale = settings.ySpeedScale;
+        end
+        speedScale = [0.1, 1.0];
+        if isfield(settings, 'ySpeedScale')
+          speedScale = settings.ySpeedScale;
+        end
+        myself.ScaleSlowSpeed(settings.yAxisID, accelerationScale(1), speedScale(1));
+        myself.ScaleFastSpeed(settings.yAxisID, accelerationScale(2), speedScale(2));
+      end
+      if isfield(settings, 'zAxisID')
+        if ((isfield(settings, 'zDefaultAcceleration') ... 
+              && myself.originalStageAccels(settings.zAxisID) ~= settings.zDefaultAcceleration) ...
+            || (isfield(settings, 'zDefaultSpeed') ... 
+                && myself.originalStageSpeeds(settings.zAxisID) ~= settings.zDefaultSpeed))
+          % Maybe throw a warning here?
+          disp(['Z-axis found do have non-default movement values. ' ...
+       char(13) 'This may occur when either 1) the system has has ' ...
+       char(13) 'been restarted after a crash, or 2) if the stage has ' ...
+       char(13) 'been changed out. For (1) don''t worry. For (2), ' ...
+       char(13) 'please update the file "Settings.ini" with the new ' ...
+       char(13) 'values.']);
+          myself.originalStageAccels(settings.zAxisID) = settings.zDefaultAcceleration;
+          myself.originalStageSpeeds(settings.zAxisID) = settings.zDefaultSpeed;
+        end
+        accelerationScale = [0.1, 1.0];
+        if isfield(settings, 'zAccelScale')
+          accelerationScale = settings.zSpeedScale;
+        end
+        speedScale = [0.1, 1.0];
+        if isfield(settings, 'zSpeedScale')
+          speedScale = settings.zSpeedScale;
+        end
+        myself.ScaleSlowSpeed(settings.zAxisID, accelerationScale(1), speedScale(1));
+        myself.ScaleFastSpeed(settings.zAxisID, accelerationScale(2), speedScale(2));
+      end
+      
       myself.UseSlowSpeed();
     end
     
@@ -62,6 +141,11 @@ classdef ESP300_Control < GPIB_Interface
     function coordinates = GetAbsoluteCoordinates(myself, axis)
     % Get the absolute coordinates of the requested axis
       coordinates = str2double(myself.Query(axis, 'PA'));
+    end
+    
+    function accel = GetStageAcceleration(myself, axis)
+    % Get the current speed of the requested axis
+      accel = str2double(myself.Query(axis, 'AU'));
     end
     
     function speed = GetStageSpeed(myself, axis)
@@ -143,56 +227,103 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
-    function ScaleFastSpeed(myself, axes, scale)
+    function ScaleFastSpeed(myself, axes, scaleAccel, scaleSpeed)
     % Set the fast speed of the requested axis to a scale of the maximum
     % speed
       if ~myself.IsValidAxes(axes)
         return;
       end
       
-      if length(scale) ~= length(axes)
-        if isempty(scale)
-          warning('ESP300_Control:NoScale', 'No scale value provided, not setting slow speed value.');
+      if length(scaleAccel) ~= length(axes)
+        if isempty(scaleAccel)
+          warning('ESP300_Control:NoScale', 'No scale value provided, not setting fast acceleration value.');
           return;
         end
-        if length(scale) ~= 1
-          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''scale'', must be either ''1'' or equal to the number of ''axes'' specified.');
+        if length(scaleAccel) ~= 1
+          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''scaleAccel'', must be either ''1'' or equal to the number of ''axes'' specified.');
         end
-        scale = ones(1, length(axes)) * scale(1);
+        scaleAccel = ones(1, length(axes)) * scaleAccel(1);
       end
-        
-      for a = 1:length(axes)
-        myself.fastStageSpeeds(a) = myself.originalStageSpeeds(a) * scale(a);
+      
+      if length(scaleSpeed) ~= length(axes)
+        if isempty(scaleSpeed)
+          warning('ESP300_Control:NoScale', 'No scale value provided, not setting fast speed value.');
+          return;
+        end
+        if length(scaleSpeed) ~= 1
+          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''scaleSpeed'', must be either ''1'' or equal to the number of ''axes'' specified.');
+        end
+        scaleSpeed = ones(1, length(axes)) * scaleSpeed(1);
+      end
+      
+      if length(axes) == 1
+        myself.fastStageAccels(axes) = myself.originalStageAccels(axes) * scaleAccel;
+        myself.fastStageSpeeds(axes) = myself.originalStageSpeeds(axes) * scaleSpeed;
+      else
+        for i = 1:length(axes)
+          a = axes(i);
+          myself.fastStageAccels(a) = myself.originalStageAccels(a) * scaleAccel(a);
+          myself.fastStageSpeeds(a) = myself.originalStageSpeeds(a) * scaleSpeed(a);
+        end
       end
     end
     
-    function ScaleSlowSpeed(myself, axes, scale)
+    function ScaleSlowSpeed(myself, axes, scaleAccel, scaleSpeed)
     % Set the slow speed of the requested axis to a scale of the maximum
     % speed
       if ~myself.IsValidAxes(axes)
         return;
       end
       
-      if length(scale) ~= length(axes)
+      if length(scaleAccel) ~= length(axes)
+        if isempty(scale)
+          warning('ESP300_Control:NoScale', 'No scale value provided, not setting slow acceleration value.');
+          return;
+        end
+        if length(scaleAccel) ~= 1
+          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''scaleAccel'', must be either ''1'' or equal to the number of ''axes'' specified.');
+        end
+        scaleAccel = ones(1, length(axes)) * scaleAccel(1);
+      end
+      
+      if length(scaleSpeed) ~= length(axes)
         if isempty(scale)
           warning('ESP300_Control:NoScale', 'No scale value provided, not setting slow speed value.');
           return;
         end
-        if length(scale) ~= 1
-          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''scale'', must be either ''1'' or equal to the number of ''axes'' specified.');
+        if length(scaleSpeed) ~= 1
+          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''scaleSpeed'', must be either ''1'' or equal to the number of ''axes'' specified.');
         end
-        scale = ones(1, length(axes)) * scale(1);
+        scaleSpeed = ones(1, length(axes)) * scaleSpeed(1);
       end
-        
-      for a = 1:length(axes)
-        myself.slowStageSpeeds(a) = myself.originalStageSpeeds(a) * scale(a);
+      
+      if length(axes) == 1
+        myself.slowStageAccels(axes) = myself.originalStageAccels(axes) * scaleAccel;
+        myself.slowStageSpeeds(axes) = myself.originalStageSpeeds(axes) * scaleSpeed;
+      else
+        for i = 1:length(axes)
+          a = axes(i);
+          myself.slowStageAccels(a) = myself.originalStageAccels(a) * scaleAccel(a);
+          myself.slowStageSpeeds(a) = myself.originalStageSpeeds(a) * scaleSpeed(a);
+        end
       end
     end
     
-    function SetFastSpeed(myself, axes, speed)
+    function SetFastSpeed(myself, axes, accel, speed)
     % Set the current speed of the requested axis
       if ~myself.IsValidAxes(axes)
         return;
+      end
+      
+      if length(accel) ~= length(axes)
+        if isempty(accel)
+          warning('ESP300_Control:NoAcceleration', 'No acceleration value provided, not setting slow acceleration value.');
+          return;
+        end
+        if length(accel) ~= 1
+          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''accel'', must be either ''1'' or equal to the number of ''axes'' specified.');
+        end
+        accel = ones(1, length(axes)) * accel(1);
       end
       
       if length(speed) ~= length(axes)
@@ -207,6 +338,7 @@ classdef ESP300_Control < GPIB_Interface
       end
         
       for a = 1:length(axes)
+        myself.fastStageAccels(a) = accel(a);
         myself.fastStageSpeeds(a) = speed(a);
       end
     end
@@ -218,10 +350,21 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
-    function SetSlowSpeed(myself, axes, speed)
+    function SetSlowSpeed(myself, axes, accel, speed)
     % Set the current speed of the requested axis
       if ~myself.IsValidAxes(axes)
         return;
+      end
+      
+      if length(accel) ~= length(axes)
+        if isempty(accel)
+          warning('ESP300_Control:NoAcceleration', 'No acceleration value provided, not setting slow acceleration value.');
+          return;
+        end
+        if length(accel) ~= 1
+          warning('ESP300_Control:AxesMismatch', 'Not enough values in the array ''aceleration'', must be either ''1'' or equal to the number of ''axes'' specified.');
+        end
+        accel = ones(1, length(axes)) * accel(1);
       end
       
       if length(speed) ~= length(axes)
@@ -236,6 +379,7 @@ classdef ESP300_Control < GPIB_Interface
       end
         
       for a = 1:length(axes)
+        myself.slowStageAccels(a) = accel(a);
         myself.slowStageSpeeds(a) = speed(a);
       end
     end
@@ -254,7 +398,7 @@ classdef ESP300_Control < GPIB_Interface
       if nargin == 1
         axes = 1:myself.maxStages;
       end
-      myself.SetAxesSpeed(axes, myself.fastStageSpeeds(axes));
+      myself.SetAxesSpeed(axes, myself.fastStageAccels(axes), myself.fastStageSpeeds(axes));
     end
     
     function UseSlowSpeed(myself, axes)
@@ -262,7 +406,7 @@ classdef ESP300_Control < GPIB_Interface
       if nargin == 1
         axes = 1:myself.maxStages;
       end
-      myself.SetAxesSpeed(axes, myself.slowStageSpeeds(axes));
+      myself.SetAxesSpeed(axes, myself.slowStageAccels(axes), myself.slowStageSpeeds(axes));
     end
     
     function WaitForAction(myself, axes, varargin)
@@ -314,6 +458,8 @@ classdef ESP300_Control < GPIB_Interface
         % Update the wait bar if it is used
         if useWaitBar
           currentPosition = str2double(myself.Query(axes, 'TP'));
+          % TODO use rule of squares to calculate the total percent (x^2 +
+          % y^2 + z^2)^(1/2)
           percent = sum(abs((currentPosition - initialPosition) ./ range)) / length(axes);
           waitbar(percent, progressBar);
         end
@@ -434,9 +580,11 @@ classdef ESP300_Control < GPIB_Interface
       myself.Command(axis, 'SR', limits(2));
     end
     
-    function SetAxesSpeed(myself, axes, speed)
-    % The the speed of the axes to speed
-      myself.Command(axes, 'VA', speed);
+    function SetAxesSpeed(myself, axes, accel, speed)
+    % Set the movement of the axes to the provided values
+      myself.Command(axes, 'JK', accel / 5.0); % Jerk
+      myself.Command(axes, 'AU', accel); % Acceleration
+      myself.Command(axes, 'VA', speed); % Velocity
     end
     
     function TurnOffMotor(myself, axis)
@@ -458,7 +606,7 @@ classdef ESP300_Control < GPIB_Interface
   methods (Access = private)
     function delete(myself)
     % Reset the stage speeds
-      myself.SetAxesSpeed(1:myself.maxStages, myself.originalStageSpeeds);
+      myself.SetAxesSpeed(1:myself.maxStages, myself.originalStageAccels, myself.originalStageSpeeds);
       
     % Turns off the stage motors
       for i = 1:myself.maxStages
