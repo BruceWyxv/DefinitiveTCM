@@ -138,17 +138,17 @@ function isCancelling = IsCancelling(handles)
 end
 
 
-function halt = Update(hObject, x, y, contact) %#ok<DEFNU>
+function halt = Update(hObject, x, y, change) %#ok<DEFNU>
 % Updates the dialog based on the results of the current iteration
   handles = guidata(hObject);
   
   oldX = get(handles.profile, 'XData');
   oldY = get(handles.profile, 'YData');
   if isnan(oldY)
-    newX = x;
-    newY = y;
+    newX = [x, x];
+    newY = [y, y];
   else
-    if contact
+    if change
       newX = [oldX, x];
       newY = [oldY, y];
     else

@@ -138,25 +138,30 @@ classdef ESP300_Control < GPIB_Interface
       end
     end
     
-    function coordinates = GetAbsoluteCoordinates(myself, axis)
-    % Get the absolute coordinates of the requested axis
-      coordinates = str2double(myself.Query(axis, 'PA'));
+    function coordinates = GetAbsoluteCoordinates(myself, axes)
+    % Get the absolute coordinates of the requested axes
+      coordinates = str2double(myself.Query(axes, 'PA'));
     end
     
-    function accel = GetStageAcceleration(myself, axis)
-    % Get the current speed of the requested axis
-      accel = str2double(myself.Query(axis, 'AU'));
+    function coordinates = GetCurrentCoordinates(myself, axes)
+    % Get the current coordinates of the requested axes
+      coordinates = str2double(myself.Query(axes, 'TP'));
     end
     
-    function speed = GetStageSpeed(myself, axis)
-    % Get the current speed of the requested axis
-      speed = str2double(myself.Query(axis, 'VA'));
+    function accel = GetStageAcceleration(myself, axes)
+    % Get the current speed of the requested axes
+      accel = str2double(myself.Query(axes, 'AU'));
     end
     
-    function positionHistory = HomeAxis(myself, axis)
+    function speed = GetStageSpeed(myself, axes)
+    % Get the current speed of the requested axes
+      speed = str2double(myself.Query(axes, 'VA'));
+    end
+    
+    function positionHistory = HomeAxis(myself, axes)
     % Moves a stage to the home position
-      if isnumeric(axis)
-        myself.Command(axis, 'OR');
+      if isnumeric(axes)
+        myself.Command(axes, 'OR');
       end
       
       % Read the instantaneous positions
@@ -164,15 +169,20 @@ classdef ESP300_Control < GPIB_Interface
       positionHistory = zeros(1, maxIterations);
       for i = 1:maxIterations
         pause(.030);
-        positionHistory(i) = str2double(myself.Query(axis, 'TP'));
+        positionHistory(i) = str2double(myself.Query(axes, 'TP'));
         
         % Break if the motion is completed
-        if str2double(myself.Query(axis, 'MD')) == 1
+        if str2double(myself.Query(axes, 'MD')) == 1
           break;
         end
       end
       
       positionHistory = positionHistory(positionHistory ~= 0);
+    end
+    
+    function stopped = IsMotionDone(myself, axes)
+    % Checks to see motion is complete on all of the listed axes
+      stopped = all(str2double(myself.Query(axes, 'MD')));
     end
     
     function valid = IsValidAxes(myself, axes)
@@ -393,6 +403,17 @@ classdef ESP300_Control < GPIB_Interface
      end
     end
     
+    function StopMotion(myself, axes)
+    % Move the specified axis to the desired position. Optionally display a
+    % progress bar if requested.
+      if isnumeric(axes)
+        myself.Command(axes, 'ST');
+      else
+        warning('ESP300_Control:BadArgument', '''axis'' and ''position'' must be numeric.');
+        return;
+      end
+    end
+    
     function UseFastSpeed(myself, axes)
     % Set the axes to use the 'fast' speed
       if nargin == 1
@@ -407,6 +428,14 @@ classdef ESP300_Control < GPIB_Interface
         axes = 1:myself.maxStages;
       end
       myself.SetAxesSpeed(axes, myself.slowStageAccels(axes), myself.slowStageSpeeds(axes));
+    end
+    
+    function UseSuperSlowSpeed(myself, axes)
+    % Set the axes to use the 'slow' speed
+      if nargin == 1
+        axes = 1:myself.maxStages;
+      end
+      myself.SetAxesSpeed(axes, myself.slowStageAccels(axes), myself.slowStageSpeeds(axes) * 0.33);
     end
     
     function WaitForAction(myself, axes, varargin)
@@ -453,11 +482,11 @@ classdef ESP300_Control < GPIB_Interface
       motionCompleted = 0;
       while ~motionCompleted
         % Check the motion done status
-        motionCompleted = all(str2double(myself.Query(axes, 'MD')));
+        motionCompleted = myself.IsMotionDone(axes);
         
         % Update the wait bar if it is used
         if useWaitBar
-          currentPosition = str2double(myself.Query(axes, 'TP'));
+          currentPosition = myself.GetCurrentCoordinates(axes);
           % TODO use rule of squares to calculate the total percent (x^2 +
           % y^2 + z^2)^(1/2)
           percent = sum(abs((currentPosition - initialPosition) ./ range)) / length(axes);

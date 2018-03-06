@@ -101,7 +101,6 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.CameraView.UIContextMenu = handles.CameraViewContextMenu;
   handles.currentCameraFeed = '';
   handles.CameraPosition = 'SampleLoading';
-  handles = SwitchCamera(handles);
   handles.StagePosition = '';
   
   % Set some parameters
@@ -136,8 +135,9 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles.IsBusy = false;
   handles.EnableMotors = true;
   
-  % Load the add-on
+  % Load the add-on and start the camera
   handles = LoadAddOn(hObject, handles);
+  handles = SwitchCamera(handles);
   
   % Ensure the sliders are updated
   UpdateEdit2Slider(handles.XEdit, handles.XSlider, handles.positionRanges(1,:));
@@ -707,11 +707,9 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
       end
       
       % Update the position ranges
-      positionRangeZ = [handles.settings.cache.zStageLimits(1) - handles.settings.cache.sampleTop, ...
-                        handles.settings.cache.sampleTop - handles.settings.cache.zStageLimits(2)];
       handles.positionRanges = [handles.settings.current.PositionRanges.x; ...
                                 handles.settings.current.PositionRanges.y; ...
-                                positionRangeZ];
+                                handles.settings.cache.zStageLimits];
       
       % Set the coordinates
       current = [handles.preferences.current.CurrentCoordinates.x, ...
@@ -724,9 +722,9 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
                  str2double(get(handles.ZEdit, 'String'))];
       
       if toSampleLoading
-        handles.preferences.current.CurrentCooridnates.x = current(1);
-        handles.preferences.current.CurrentCooridnates.y = current(2);
-        handles.preferences.current.CurrentCooridnates.z = current(3);
+        handles.preferences.current.CurrentCoordinates.x = current(1);
+        handles.preferences.current.CurrentCoordinates.y = current(2);
+        handles.preferences.current.CurrentCoordinates.z = current(3);
         
         handles.EnableMotors = false;
       end
@@ -811,91 +809,138 @@ end
 
 function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
 % Perform the crash prevention routine
+  % Note that the axis mappings for the profiling are:
+  %   x -> Y stage
+  %   y -> Z stage
+  horizontalStage = handles.settings.current.StageController.yAxisID;
+  verticalStage = handles.settings.current.StageController.zAxisID;
+  
+  % Reset the stage limits
+  softVerticalLimits = handles.settings.current.SoftStageBoundaries.z;
+  handles.stageController.SetLimits(handles.settings.current.StageController.zAxisID, softVerticalLimits); 
+  handles.settings.cache.CrashPrevention.heatedStage = false;
+  
+  % Set the crash prevention parameters
+  scanWidth = handles.settings.current.CrashPrevention.scanWidth;
+  startX = handles.settings.current.CrashPrevention.scanStart;
+  endX = startX - scanWidth;
+  centerX = (startX + endX) / 2;
+  startY = handles.settings.current.CrashPrevention.stageHeight;
+  endY = softVerticalLimits(1);
+  stageHeightAtHighestTracePoint = softVerticalLimits(2);
+  
   % Open the window to track the progress
   profileHandle = CrashPrevention('Settings', handles.settings);
   
+  % Move the stage to the start position, then SLOOOOW down for the scan
+  handles.stageController.MoveAxis([horizontalStage, verticalStage], [startX, startY], true);
+  handles.stageController.UseSuperSlowSpeed([horizontalStage, verticalStage]);
+  
+  % Start the stan
   done = false;
   returnToSampleLoadingPosition = false;
-  x = handles.settings.current.CrashPrevention.stageEdge;
-  scanWidth = handles.settings.current.CrashPrevention.scanWidth;
-  startX = x;
-  endX = startX - scanWidth;
-  centerX = (startX + endX) / 2;
-  y = handles.settings.current.CrashPrevention.stageHeight - 1;
-  softVerticalLimits = handles.settings.original.SoftStageBoundaries.z;
-  endY = softVerticalLimits(1);
-  step = handles.settings.current.CrashPrevention.stepSize;
-  trace = (handles.settings.current.CrashPrevention.trace == 1);
-  stageHeightAtHighestTracePoint = softVerticalLimits(2);
-  firstEdge = 0;
+  inflectionPoints = 0;
+  isBlocked = IsLocationBlocked(handles);
+  oldIsBlocked = ~isBlocked;
+  handles.stageController.MoveAxis(horizontalStage, endX);
+  direction = horizontalStage;
+  handles.settings.cache.isHeatedStage = false;
   while ~done
-    % Strangely enough, the axis mappings for the profiling are:
-    %   x -> Y stage
-    %   y -> Z stage
-    isBlocked = IsLocationBlocked(handles, x, y);
-    returnToSampleLoadingPosition = CrashPrevention('Update', profileHandle, x - centerX, y, isBlocked);
+    % Is the beam broken?
+    isBlocked = IsLocationBlocked(handles);
+    currentPositions = handles.stageController.GetCurrentCoordinates([horizontalStage, verticalStage]);
+    x = currentPositions(1);
+    y = currentPositions(2);
+    returnToSampleLoadingPosition = CrashPrevention('Update', profileHandle, x - centerX, y, isBlocked == oldIsBlocked);
+    oldIsBlocked = isBlocked;
     
-    if isBlocked % Move up
-      % Set the value to the highest found point
-      if y < stageHeightAtHighestTracePoint && firstEdge > 5
-        stageHeightAtHighestTracePoint = y;
-      end
-      
-      y = y - step;
-      if y < softVerticalLimits(1)
-        % This could indicate that the sample height may exceed the limits
-        % of the TCM. Throw and error/warning message here instead?
-        y = softVerticalLimits(1);
-        x = x - step;
-      end
-    else % Move across
-      x = x - step;
-      firstEdge = firstEdge + 1;
-      
-      if trace
-        while ~isBlocked && ~returnToSampleLoadingPosition 
-          y = y + step;
-          % Break the loop if it will exceed the soft stage limits
-          if y > softVerticalLimits(2)
-            break
+    if returnToSampleLoadingPosition
+      % Stop all motion if the user has cancelled the operation
+      handles.stageController.StopMotion([horizontalStage, verticalStage]);
+    else
+      if isBlocked
+        if direction == verticalStage
+          % We are still moving up, update the maximum height (note that the
+          % directions are reversed, i.e. a lower 'y' value corresponds to a
+          % taller sample height)
+          stageHeightAtHighestTracePoint = y;
+        else
+          % We are moving horizontally and have found an edge
+          handles.stageController.StopMotion(horizontalStage);
+          inflectionPoints = inflectionPoints + 1;
+
+          % Check to see if this is the stage edge
+          if inflectionPoints == 1
+            if abs(x - handles.settings.current.CrashPrevention.stageEdge) < handles.settings.current.CrashPrevention.tolerance
+              fprintf('Regular stage edge found!\n');
+            else
+              % Handle other cases here as they may arise
+              handles.settings.cache.isHeatedStage = true;
+              fprintf('Heated stage detected at (%f, %f)\n', x, y);
+            end
           end
           
-          isBlocked = IsLocationBlocked(handles, x, y);
-          returnToSampleLoadingPosition = CrashPrevention('Update', profileHandle, x - centerX, y, isBlocked);
+          % DEBUG Print the location (for now)
+          fprintf('Inflection point %d found at (%f, %f)\n', inflectionPoints, x, y);
+
+          % Start moving in the vertical direction
+          handles.stageController.MoveAxis(verticalStage, endY);
+          direction = verticalStage;
         end
-        y = y - step;
+      else % isBlocked == false
+        if direction == verticalStage
+          % We are moving vertically and have found an edge
+          stageHeightAtHighestTracePoint = y;
+          handles.stageController.StopMotion(verticalStage);
+          inflectionPoints = inflectionPoints + 1;
+          
+          % DEBUG Print the location (for now)
+          fprintf('Inflection point %d found at (%f, %f)\n', inflectionPoints, x, y);
+
+          handles.stageController.MoveAxis(horizontalStage, endX);
+          direction = horizontalStage;
+        else
+          % Traveling in the horizontal direction, nothing to do
+        end
       end
     end
     
     % Check to see if we've scanned the breadth of the stage
-    xDone = x < endX;
-    yDone = y < endY;
-    done = xDone || yDone || returnToSampleLoadingPosition;
+    done = handles.stageController.IsMotionDone([horizontalStage, verticalStage]) || returnToSampleLoadingPosition;
   end
   
+  % Close the scan window
   CrashPrevention('Close', profileHandle);
   
   % Update the soft limits on the stage controller
-  softVerticalLimits(2) = stageHeightAtHighestTracePoint ... The lowest value that the stage had to be at to clear the beam
-                          + handles.settings.current.CrashPrevention.wiggleRoom ... Some space to breath
-                          - handles.settings.current.CrashPrevention.offset... The vertical distance between the slot detector beam and the objective working distance
-                          + handles.settings.current.CrashPrevention.heaterOffset; % Allow the heated stage to move up so that the microscope objective is inside of it a certain distance
+  if handles.settings.cache.isHeatedStage
+    % Allow the heated stage to move up so that the microscope objective is
+    % inside of it a certain distance
+    softVerticalLimits(2) = softVerticalLimits(2) + handles.settings.current.CrashPrevention.heaterOffset;
+  else
+    softVerticalLimits(2) = (stageHeightAtHighestTracePoint ... The lowest value that the stage had to be at to clear the beam
+                             + handles.settings.current.CrashPrevention.wiggleRoom) ... Some space to breath
+                            - handles.settings.current.CrashPrevention.offset; % The vertical distance between the slot detector beam and the objective working distance
+    if softVerticalLimits(2) > handles.settings.current.SoftStageBoundaries.z(2)
+      softVerticalLimits(2) = handles.settings.current.SoftStageBoundaries.z(2);
+    end
+  end
   handles.settings.cache.zStageLimits = softVerticalLimits;
   handles.settings.cache.sampleTop = stageHeightAtHighestTracePoint;
+  handles.stageController.SetLimits(handles.settings.current.StageController.zAxisID, softVerticalLimits);
   
-  % Adjust the current coordinate height so that it will match the 0 point
-  % of the wide and scan positions
-  handles.settings.current.PositionOrigins.scan(3) = stageHeightAtHighestTracePoint - handles.settings.current.CrashPrevention.offset;
-  handles.settings.current.PositionOrigins.wide(3) = handles.settings.current.PositionOrigins.scan(3) +  handles.settings.current.CrashPrevention.wideOffsetToScan;
+  % Adjust the current coordinate height so that the working distances will
+  % be in focus at the highest sample point
+  focusHeight = stageHeightAtHighestTracePoint - (handles.settings.current.PositionOrigins.wide(3) + handles.settings.current.CrashPrevention.offset);
+  handles.preferences.current.CurrentCoordinates.z = focusHeight;
   
-  % Set the limits
-  handles.stageController.SetLimits(handles.settings.current.StageController.zAxisID, softVerticalLimits); 
+  % Reset the speed
+  handles.stageController.UseFastSpeed();
 end
 
 
-function isBlocked = IsLocationBlocked(handles, x, y)
+function isBlocked = IsLocationBlocked(handles)
 % Determines if a point is blocking the slot detector beam
-  handles.stageController.MoveAxis([handles.settings.current.StageController.yAxisID, handles.settings.current.StageController.zAxisID], [x, y]);
   value = handles.lockInAmpController.GetAuxInputValue(handles.settings.current.CrashPrevention.inputChannel);
   isBlocked = value > handles.settings.current.CrashPrevention.blockedCutoffVoltage;
 end

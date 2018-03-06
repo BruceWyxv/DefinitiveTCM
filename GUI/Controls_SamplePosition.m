@@ -75,6 +75,10 @@ function CameraSelectionGroup_SelectionChangedFcn(hObject, eventdata, handles) %
 % handles    structure with handles and user data (see GUIDATA)
   handles = UpdateCameraSelectionGroup(handles, eventdata);
   guidata(hObject, handles);
+  
+  % TODO: build in error tolerance if UpdateCameraSelectionGroup() fails,
+  % i.e. reset the group buttom back to the pre-selected state or try again
+  % 'n' times (n could be even 2 or 3)
 end
 
 
@@ -93,7 +97,19 @@ function MoveStageToCameraButton_Callback(hObject, eventdata, handles) %#ok<DEFN
 % hObject    handle to MoveStageToCameraButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+  % Show the outside view
+  temporaryCameraPositionHolder = handles.CameraPosition;
+  handles.CameraPosition = 'SampleLoading';
+  handles = Controls('SwitchCamera', handles);
+  handles.CameraPosition = temporaryCameraPositionHolder;
+  
+  % Move the stage
   [handles, ~] = Controls('MoveStageToCamera', handles);
+  
+  % Set the camera back
+  handles = Controls('SwitchCamera', handles);
+  
+  % Update the GUI and handles
   handles = UpdateLinkCheckbox(handles);
   guidata(hObject, handles);
 end
@@ -167,13 +183,11 @@ function handles = UpdateCameraSelectionGroup(handles, data)
   
   % Check if we need to reposition the stage
   if get(handles.LinkStageToCameraCheckbox, 'Value') == 1 && ~strcmp(handles.CameraPosition, handles.StagePosition)
-    % Show the outside view if we are moving the stage
-    if ~strcmp(handles.CameraPosition, 'SampleLoading')
-      temporaryCameraPositionHolder = handles.CameraPosition;
-      handles.CameraPosition = 'SampleLoading';
-      handles = Controls('SwitchCamera', handles);
-      handles.CameraPosition = temporaryCameraPositionHolder;
-    end
+    % Show the outside view
+    temporaryCameraPositionHolder = handles.CameraPosition;
+    handles.CameraPosition = 'SampleLoading';
+    handles = Controls('SwitchCamera', handles);
+    handles.CameraPosition = temporaryCameraPositionHolder;
     
     % The stage position and camera view are different, and the stage
     % position is linked to the camera view, so move the stage
