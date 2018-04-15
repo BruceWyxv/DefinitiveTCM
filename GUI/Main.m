@@ -82,7 +82,10 @@ function Main_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   % Set initial states
   handles = CascadeActionPower(handles, false);
   imshow(handles.settings.current.TCMLogo);
-  handles.settings.cache.zStageLimits = handles.settings.current.SoftStageBoundaries.z;
+  
+  % Create cache values
+  handles.settings.cache.isHeatedStage = false;
+  handles.settings.cache.sampleTop = 0.0;
 
   % Update handles structure
   guidata(hObject, handles);

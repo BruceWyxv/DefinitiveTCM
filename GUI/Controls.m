@@ -106,7 +106,7 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   % Set some parameters
   handles.positionRanges = [handles.settings.current.PositionRanges.x; ...
                             handles.settings.current.PositionRanges.y; ...
-                            handles.settings.current.PositionRanges.z];
+                            GetDynamicVerticalPositionBounds(handles, handles.CameraPosition)];
   set(handles.XEdit, 'String', '0');
   set(handles.YEdit, 'String', '0');
   set(handles.ZEdit, 'String', '0');
@@ -140,19 +140,10 @@ function Controls_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<INUSL>
   handles = SwitchCamera(handles);
   
   % Ensure the sliders are updated
+  handles = UpdateListeners(handles);
   UpdateEdit2Slider(handles.XEdit, handles.XSlider, handles.positionRanges(1,:));
   UpdateEdit2Slider(handles.YEdit, handles.YSlider, handles.positionRanges(2,:));
   UpdateEdit2Slider(handles.ZEdit, handles.ZSlider, handles.positionRanges(3,:));
-  
-  % Add listners so that dragging the sliders also updates the edit boxes,
-  % but do not move the stages yet. Wait until the user has released the
-  % cursor before actually moving the stages.
-  addlistener(handles.XSlider, 'Value', 'PreSet',...
-    @(~, ~) TrackSlider2Edit(handles.XSlider, handles.XEdit, handles, 1));
-  addlistener(handles.YSlider, 'Value', 'PreSet',...
-    @(~, ~) TrackSlider2Edit(handles.YSlider, handles.YEdit, handles, 2));
-  addlistener(handles.ZSlider, 'Value', 'PreSet',...
-    @(~, ~) TrackSlider2Edit(handles.ZSlider, handles.ZEdit, handles, 3));
   
   % Set the motor controls and relative speeds
   set(handles.Small, 'Value', 1);
@@ -254,8 +245,9 @@ function XEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of XEdit as text
 %        str2double(get(hObject,'String')) returns contents of XEdit as a double
+  MoveStageToEditPosition(1, hObject, handles);
   UpdateEdit2Slider(hObject, handles.XSlider, handles.positionRanges(1,:));
-  MoveStageToSliderPosition(1, handles.XSlider, handles);
+  guidata(hObject, handles);
 end
 
 
@@ -314,7 +306,8 @@ function XSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
 
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-  UpdateSlider2Edit(hObject, 1, handles.XEdit, handles);
+  MoveStageToSliderPosition(1, hObject, handles);
+  UpdateSlider2Edit(hObject, handles.XEdit, handles, 1)
 end
 
 
@@ -325,8 +318,8 @@ function YEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of YEdit as text
 %        str2double(get(hObject,'String')) returns contents of YEdit as a double
+  MoveStageToEditPosition(2, hObject, handles);
   UpdateEdit2Slider(hObject, handles.YSlider, handles.positionRanges(2,:));
-  MoveStageToSliderPosition(2, handles.YSlider, handles);
 end
 
 
@@ -385,7 +378,8 @@ function YSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
 
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-  UpdateSlider2Edit(hObject, 2, handles.YEdit, handles);
+  MoveStageToSliderPosition(2, hObject, handles);
+  UpdateSlider2Edit(hObject, handles.YEdit, handles, 2)
 end
 
 
@@ -396,8 +390,9 @@ function ZEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 
 % Hints: get(hObject,'String') returns contents of ZEdit as text
 %        str2double(get(hObject,'String')) returns contents of ZEdit as a double
+  MoveStageToEditPosition(3, hObject, handles);
   UpdateEdit2Slider(hObject, handles.ZSlider, handles.positionRanges(3,:));
-  MoveStageToSliderPosition(3, handles.ZSlider, handles);
+  guidata(hObject, handles);
 end
 
 
@@ -456,13 +451,51 @@ function ZSlider_Callback(hObject, eventdata, handles) %#ok<INUSL>
 
 % Hints: get(hObject,'Value') returns position of slider
 %        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
-  UpdateSlider2Edit(hObject, 3, handles.ZEdit, handles);
+  MoveStageToSliderPosition(3, hObject, handles);
+  UpdateSlider2Edit(hObject, handles.ZEdit, handles, 3)
 end
 
 
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
+function stageCoordinates = ConvertPositions2StageCoordinates(handles, stagePosition, positionCoordinates)
+% Converts the provided relative coordinates to actual stage coordinates
+  origins = GetOrigin(stagePosition, handles);
+
+  if handles.settings.current.ReverseTravel.x == 1
+    positionCoordinates(1) = -positionCoordinates(1);
+  end
+  if handles.settings.current.ReverseTravel.y == 1
+    positionCoordinates(2) = -positionCoordinates(2);
+  end
+  if handles.settings.current.ReverseTravel.z == 1
+    positionCoordinates(3) = -positionCoordinates(3);
+  end
+  
+  % Use the sample top as the '0' value for 'z'
+  stageCoordinates = origins + positionCoordinates;
+end
+
+function positionCoordinates = ConvertStages2PositionCoordinates(handles, stagePosition, stageCoordinates)
+% Converts the provided absolute stage coordinates to the relative
+% coordinate system of the provided stage position
+  origins = GetOrigin(stagePosition, handles);
+  
+  % Set the sample top as the '0' value for 'z'
+  positionCoordinates = stageCoordinates - origins;
+                       
+  if handles.settings.current.ReverseTravel.x == 1
+    positionCoordinates(1) = -positionCoordinates(1);
+  end
+  if handles.settings.current.ReverseTravel.y == 1
+    positionCoordinates(2) = -positionCoordinates(2);
+  end
+  if handles.settings.current.ReverseTravel.z == 1
+    positionCoordinates(3) = -positionCoordinates(3);
+  end
+end
+
 function stagePosition = ConvertSlider2Position(slider, boundaries)
 % Converts the slider position to stage position
   sliderPosition = get(slider, 'Value');
@@ -475,50 +508,25 @@ function stagePosition = ConvertSlider2Position(slider, boundaries)
 end
 
 
-function [stagePosition, x, y, z] = DetermineStagePosition(handles)
+function [stagePosition, x, y, z] = DetermineStagePositionAndPositionCoordinates(handles)
 % Attempts to determine the current stage position from the absolute
 % coordinates of the stages
   % Get the current coordinates
-  coordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.current.StageController.xAxisID, ...
-                                                                handles.settings.current.StageController.yAxisID, ...
-                                                                handles.settings.current.StageController.zAxisID]);
+  stageCoordinates = handles.stageController.GetAbsoluteCoordinates([handles.settings.current.StageController.xAxisID, ...
+                                                                     handles.settings.current.StageController.yAxisID, ...
+                                                                     handles.settings.current.StageController.zAxisID]);
   locations = handles.settings.current.PositionOrigins;
-  ranges = handles.settings.current.PositionRanges;
   fields = fieldnames(locations);
-  position = -1;
-  stagePosition = '';
+  
+  x = 0;
+  y = 0;
+  z = 0;
   
   % Determined the stage position
   found = false;
   for i = 1:length(fields)
-    location = locations.(fields{i});
-    x = coordinates(1) - location(1);
-    if handles.settings.current.ReverseTravel.x == 1
-      x = -x;
-    end
-    y = coordinates(2) - location(2);
-    if handles.settings.current.ReverseTravel.y == 1
-      y = -y;
-    end
-    z = coordinates(3) - location(3);
-    if handles.settings.current.ReverseTravel.z == 1
-      z = -z;
-    end
-    if x >= ranges.x(1) && x <= ranges.x(2) && y >= ranges.y(1) && y <= ranges.y(2) && z >= ranges.z(1) && z <= ranges.z(2)
-      position = i;
-      found = true;
-      break;
-    else
-      x = 0;
-      y = 0;
-      z = 0;
-    end
-  end
-  
-  % Are we in a location?
-  if found
     % Convert to the internal system
-    switch fields{position}
+    switch fields{i}
       case 'load'
         stagePosition = 'SampleLoading';
         handles.interfaceController.ConfigureForPositionSampleLoad();
@@ -530,11 +538,123 @@ function [stagePosition, x, y, z] = DetermineStagePosition(handles)
       case 'scan'
         stagePosition = 'ScanningObjective';
         handles.interfaceController.ConfigureForPositionScan();
+        
+      otherwise
+        continue
+    end
+    
+    if IsInStageBounds(handles, stagePosition, stageCoordinates)
+      found = true;
+      positionCoordinates = ConvertStages2PositionCoordinates(handles, stagePosition, stageCoordinates);
+      x = positionCoordinates(1);
+      y = positionCoordinates(2);
+      z = positionCoordinates(3);
+      break;
+    end
+  end
+  
+  % Are we in a location?
+  if found
+    switch stagePosition
+      case 'SampleLoading';
+        handles.interfaceController.ConfigureForPositionSampleLoad();
+
+      case 'WideImage';
+        handles.interfaceController.ConfigureForPositionWideImage();
+
+      case 'ScanningObjective';
+        handles.interfaceController.ConfigureForPositionScan();
     end
   else
     stagePosition = 'SampleLoading';
     handles.interfaceController.ConfigureForPositionSampleLoad();
-    LocateStageAtSampleLoading(handles, GetOrigin(stagePosition, locations));
+    LocateStageAtSampleLoading(handles, GetOrigin(stagePosition, handles));
+  end
+end
+
+
+function [stageCoordinates, modified] = GetClosestInBoundStageCoordinates(handles, stagePosition, stageCoordinates)
+% Returns the closest in-bounds position coordinates possible
+  modified = [false, false, false];
+  verticalBounds = GetDynamicVerticalStageBounds(handles, stagePosition);
+  
+  % The z-axis can be evaluated for both the heated and regular stages
+  if stageCoordinates(3) < verticalBounds(1)
+    stageCoordinates(3) = verticalBounds(1);
+    modified(3) = true;
+  elseif stageCoordinates(3) > verticalBounds(2)
+    stageCoordinates(3) = verticalBounds(2);
+    modified(3) = true;
+  end
+  
+  origins = GetOrigin(stagePosition, handles);
+  
+  if handles.settings.cache.isHeatedStage
+    
+    % Use a cylindrical coordinate system and return a location on the
+    % cylinder surface if the points are outside the volume
+    
+  else % Regular stage
+    xRange = handles.settings.current.PositionRanges.x + origins(1);
+    if stageCoordinates(1) < xRange(1)
+      stageCoordinates(1) = xRange(1);
+      modified(1) = true;
+    elseif stageCoordinates(1) > xRange(2)
+      stageCoordinates(1) = xRange(2);
+      modified(1) = true;
+    end
+    
+    yRange = handles.settings.current.PositionRanges.y + origins(2);
+    if stageCoordinates(2) < yRange(1)
+      stageCoordinates(2) = yRange(1);
+      modified(2) = true;
+    elseif stageCoordinates(2) > yRange(2)
+      stageCoordinates(2) = yRange(2);
+      modified(2) = true;
+    end
+  end
+end
+
+
+function verticalBounds = GetDynamicVerticalPositionBounds(handles, stagePosition)
+% Gets the dynamic vertical bounds at the provided stage position
+  stageBounds = GetDynamicVerticalStageBounds(handles, stagePosition);
+  
+  verticalBounds = stageBounds - handles.settings.cache.sampleTop;
+  
+  if verticalBounds(2) > handles.settings.current.CrashPrevention.wiggleRoom
+    verticalBounds(2) = handles.settings.current.CrashPrevention.wiggleRoom;
+  end
+end
+
+
+function verticalBounds = GetDynamicVerticalStageBounds(handles, stagePosition)
+% Gets the dynamic vertical bounds at the provided stage position
+  verticalBounds = handles.settings.current.SoftStageBoundaries.z;
+  
+  if handles.settings.cache.isHeatedStage
+    
+  else % Regular stage
+    sampleTop = handles.settings.cache.sampleTop;
+    slot2WideOffset = handles.settings.current.CrashPrevention.slotOffsetToWide;
+    wide2ScanOffset = handles.settings.current.CrashPrevention.wideOffsetToScan;
+    wiggleRoom = handles.settings.current.CrashPrevention.wiggleRoom;
+    
+    switch stagePosition
+      case 'SampleLoading';
+        % Nothing changes
+
+      case 'WideImage';
+        verticalBounds(2) = (sampleTop - slot2WideOffset) + wiggleRoom;
+
+      case 'ScanningObjective';
+        verticalBounds(2) = (sampleTop - (slot2WideOffset + wide2ScanOffset)) + wiggleRoom;
+    end
+  end
+  
+  % Check to see if we have move beyond the stage limits
+  if verticalBounds(2) > handles.settings.current.SoftStageBoundaries.z(2)
+    verticalBounds(2) = handles.settings.current.SoftStageBoundaries.z(2);
   end
 end
 
@@ -577,17 +697,26 @@ function step = GetMediumStep(slider, handles)
 end
 
 
-function origin = GetOrigin(position, positionLocations)
+function origin = GetOrigin(position, handles)
 % Fetches the origin of the position
   switch position
     case 'SampleLoading';
-      origin = positionLocations.load;
+      origin = handles.settings.current.PositionOrigins.load;
+      origin(3) = 0.0;
       
     case 'WideImage';
-      origin = positionLocations.wide;
+      origin = handles.settings.current.PositionOrigins.wide;
+      origin(3) = handles.settings.cache.sampleTop ...
+                  - handles.settings.current.CrashPrevention.slotOffsetToWide;
 
     case 'ScanningObjective';
-      origin = positionLocations.scan;
+      origin = handles.settings.current.PositionOrigins.scan;
+      origin(3) = handles.settings.cache.sampleTop ...
+                  - handles.settings.current.CrashPrevention.slotOffsetToWide;
+                  - handles.settings.current.CrashPrevention.wideOffsetToScan;
+      
+    otherwise
+      error('Cannot get origin when the position is undefined.');
   end
 end
 
@@ -609,6 +738,41 @@ function step = GetSmallStep(slider, handles)
   range = get(slider, 'Max') - get(slider, 'Min');
   step = range * speed;
 end
+
+
+function inBounds = IsInStageBounds(handles, stagePosition, stageCoordinates)
+% Determines if the provided stage positions are in bounds
+  inBounds = true;
+  verticalBounds = GetDynamicVerticalStageBounds(handles, stagePosition);
+  
+  % The z-axis can be evaluated for both the heated and regular stages
+  if stageCoordinates(3) < verticalBounds(1) || stageCoordinates(3) > verticalBounds(2)
+    inBounds = false;
+    return;
+  end
+  
+  origins = GetOrigin(stagePosition, handles);
+  
+  if handles.settings.cache.isHeatedStage
+    
+    % Use a cylindrical coordinate system and see if the points are within
+    %the volume
+    
+  else % Regular stage
+    xRange = handles.settings.current.PositionRanges.x + origins(1);
+    if stageCoordinates(1) < xRange(1) || stageCoordinates(1) > xRange(2)
+      inBounds = false;
+      return;
+    end
+    
+    yRange = handles.settings.current.PositionRanges.y + origins(2);
+    if stageCoordinates(2) < yRange(1) || stageCoordinates(2) > yRange(2)
+      inBounds = false;
+      return;
+    end
+  end
+end
+
 
 function handles = LoadAddOn(figure, handles)
 % Load the add on specified by handles.addOn
@@ -636,7 +800,7 @@ function handles = LoadAddOn(figure, handles)
   set(figure, 'Name', name);
   
   % Attempt to determine the stage position if it is currently unknown
-  handles = UpdateCurrentPositionToControls(handles);
+  handles = ReadCurrentPositionAndUpdateControls(handles);
   
   % Initialize any controls created
   addOnHandle = str2func(handles.addOn.Tag);
@@ -700,16 +864,14 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
       handles.interfaceController.ConfigureForSampleHeightMeasurement();
       returnToSampleLoadingPosition = PerformCrashPrevention(handles);
       
+      % Update the bounds
+      handles = UpdateBounds(handles);
+      
       if returnToSampleLoadingPosition
         handles.IsBusy = false;
         SetControlState(handles);
         return;
       end
-      
-      % Update the position ranges
-      handles.positionRanges = [handles.settings.current.PositionRanges.x; ...
-                                handles.settings.current.PositionRanges.y; ...
-                                handles.settings.cache.zStageLimits];
       
       % Set the coordinates
       current = [handles.preferences.current.CurrentCoordinates.x, ...
@@ -743,7 +905,7 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
     end
     
     % Get the new origin and calculate the new position
-    cameraOrigin = GetOrigin(handles.CameraPosition, handles.settings.current.PositionOrigins);
+    cameraOrigin = GetOrigin(handles.CameraPosition, handles);
     new = current + cameraOrigin;
     % Move the axis, showing a progress bar
     % Make sure to drop the Z axis down first, second move the X and Y axes,
@@ -751,7 +913,10 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
     handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, handles.settings.current.SafeTraverseHeight.z, true);
     handles.stageController.MoveAxis([handles.settings.current.StageController.xAxisID, handles.settings.current.StageController.yAxisID], new(1:2), true);
     handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, new(3), true);
-    handles = UpdateCurrentPositionToControls(handles);
+    handles = ReadCurrentPositionAndUpdateControls(handles);
+    
+    % Update the sliders to track appropriately for the new position
+    handles = UpdateListeners(handles);
 
     % The stage should now be in the camera's field-of-view
     handles.StagePosition = handles.CameraPosition;
@@ -765,45 +930,57 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
 end
 
 
-function MoveStageToSliderPosition(axis, slider, handles)
-% Moves the provided axis to the position specified by the slider control
-  switch handles.CameraPosition
-    case 'SampleLoading';
-      origin = handles.settings.current.PositionOrigins.load(axis);
-      
-    case 'WideImage';
-      origin = handles.settings.current.PositionOrigins.wide(axis);
-
-    case 'ScanningObjective';
-      origin = handles.settings.current.PositionOrigins.scan(axis);
-  end
+function MoveStageToEditPosition(axis, edit, handles)
+% Moves the provided axis to the position specified by the edit control
+  [relativePosition, ~] = SanitizeEdit(edit, handles.positionRanges(axis,:));
   
-  relativePosition = ConvertSlider2Position(slider, handles.positionRanges(axis,:));
+  MoveStageToRelativePosition(handles, axis, relativePosition);
+end
+
+
+function MoveStageToRelativePosition(handles, axis, relativePosition)
+% Moves the provided axis to the position specified
+  stagePosition = handles.StagePosition;
+  
   switch axis
     case 1
       relativeAxis = handles.settings.current.StageController.xAxisID;
-      if handles.settings.current.ReverseTravel.x ~= 0
-        relativePosition = -relativePosition;
-      end
       handles.preferences.current.CurrentCoordinates.x = relativePosition;
       
     case 2
       relativeAxis = handles.settings.current.StageController.yAxisID;
-      if handles.settings.current.ReverseTravel.y ~= 0
-        relativePosition = -relativePosition;
-      end
       handles.preferences.current.CurrentCoordinates.y = relativePosition;
       
     case 3
       relativeAxis = handles.settings.current.StageController.zAxisID;
-      if handles.settings.current.ReverseTravel.z ~= 0
-        relativePosition = -relativePosition;
-      end
       handles.preferences.current.CurrentCoordinates.z = relativePosition;
   end
   
-  absolutePosition = origin + relativePosition;
-  handles.stageController.MoveAxis(relativeAxis, absolutePosition);
+  positionCoordinates = [handles.preferences.current.CurrentCoordinates.x, ...
+                         handles.preferences.current.CurrentCoordinates.y, ...
+                         handles.preferences.current.CurrentCoordinates.z];
+  stageCoordinates = ConvertPositions2StageCoordinates(handles, stagePosition, positionCoordinates);
+  
+  if ~IsInStageBounds(handles, stagePosition, stageCoordinates)
+    [stageCoordinates, modified] = GetClosestInBoundStageCoordinates(handles, stagePosition, stageCoordinates);
+    if any(modified)
+      positionCoordinates = ConvertStages2PositionCoordinates(handles, stagePosition, stageCoordinates);
+      
+      handles.preferences.current.CurrentCoordinates.x = positionCoordinates(1);
+      handles.preferences.current.CurrentCoordinates.y = positionCoordinates(2);
+      handles.preferences.current.CurrentCoordinates.z = positionCoordinates(3);
+    end
+  end
+  
+  handles.stageController.MoveAxis(relativeAxis, stageCoordinates(axis));
+end
+
+
+function MoveStageToSliderPosition(axis, slider, handles)
+% Moves the provided axis to the position specified by the slider control
+  relativePosition = ConvertSlider2Position(slider, handles.positionRanges(axis,:));
+  
+  MoveStageToRelativePosition(handles, axis, relativePosition);
 end
 
 
@@ -818,19 +995,19 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
   % Reset the stage limits
   softVerticalLimits = handles.settings.current.SoftStageBoundaries.z;
   handles.stageController.SetLimits(handles.settings.current.StageController.zAxisID, softVerticalLimits); 
-  handles.settings.cache.CrashPrevention.heatedStage = false;
+  handles.settings.cache.isHeatedStage = false;
   
   % Set the crash prevention parameters
   scanWidth = handles.settings.current.CrashPrevention.scanWidth;
   startX = handles.settings.current.CrashPrevention.scanStart;
   endX = startX - scanWidth;
   centerX = (startX + endX) / 2;
-  startY = handles.settings.current.CrashPrevention.stageHeight;
   endY = softVerticalLimits(1);
+  startY = softVerticalLimits(2);
   stageHeightAtHighestTracePoint = softVerticalLimits(2);
   
   % Open the window to track the progress
-  profileHandle = CrashPrevention('Settings', handles.settings);
+  profileHandle = CrashPrevention('Settings', handles.settings, 'Preferences', handles.preferences);
   
   % Move the stage to the start position, then SLOOOOW down for the scan
   handles.stageController.MoveAxis([horizontalStage, verticalStage], [startX, startY], true);
@@ -840,14 +1017,13 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
   done = false;
   returnToSampleLoadingPosition = false;
   inflectionPoints = 0;
-  isBlocked = IsLocationBlocked(handles);
+  isBlocked = PerformCrashPrevention_IsLocationBlocked(handles);
   oldIsBlocked = ~isBlocked;
   handles.stageController.MoveAxis(horizontalStage, endX);
   direction = horizontalStage;
-  handles.settings.cache.isHeatedStage = false;
   while ~done
     % Is the beam broken?
-    isBlocked = IsLocationBlocked(handles);
+    isBlocked = PerformCrashPrevention_IsLocationBlocked(handles);
     currentPositions = handles.stageController.GetCurrentCoordinates([horizontalStage, verticalStage]);
     x = currentPositions(1);
     y = currentPositions(2);
@@ -871,17 +1047,15 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
 
           % Check to see if this is the stage edge
           if inflectionPoints == 1
-            if abs(x - handles.settings.current.CrashPrevention.stageEdge) < handles.settings.current.CrashPrevention.tolerance
-              fprintf('Regular stage edge found!\n');
+            if abs(x - handles.settings.current.CrashPrevention.regularStageEdgeH) < handles.settings.current.CrashPrevention.tolerance && ...
+               abs(y - handles.settings.current.CrashPrevention.regularStageEdgeV) < handles.settings.current.CrashPrevention.tolerance
+              fprintf('Regular stage detected!\n');
             else
               % Handle other cases here as they may arise
               handles.settings.cache.isHeatedStage = true;
               fprintf('Heated stage detected at (%f, %f)\n', x, y);
             end
           end
-          
-          % DEBUG Print the location (for now)
-          fprintf('Inflection point %d found at (%f, %f)\n', inflectionPoints, x, y);
 
           % Start moving in the vertical direction
           handles.stageController.MoveAxis(verticalStage, endY);
@@ -893,9 +1067,6 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
           stageHeightAtHighestTracePoint = y;
           handles.stageController.StopMotion(verticalStage);
           inflectionPoints = inflectionPoints + 1;
-          
-          % DEBUG Print the location (for now)
-          fprintf('Inflection point %d found at (%f, %f)\n', inflectionPoints, x, y);
 
           handles.stageController.MoveAxis(horizontalStage, endX);
           direction = horizontalStage;
@@ -909,6 +1080,9 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
     done = handles.stageController.IsMotionDone([horizontalStage, verticalStage]) || returnToSampleLoadingPosition;
   end
   
+  % The value we've been seeking
+  handles.settings.cache.sampleTop = stageHeightAtHighestTracePoint;
+  
   % Close the scan window
   CrashPrevention('Close', profileHandle);
   
@@ -916,30 +1090,29 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
   if handles.settings.cache.isHeatedStage
     % Allow the heated stage to move up so that the microscope objective is
     % inside of it a certain distance
-    softVerticalLimits(2) = softVerticalLimits(2) + handles.settings.current.CrashPrevention.heaterOffset;
+    softVerticalLimits(2) = softVerticalLimits(2) - handles.settings.current.CrashPrevention.heatedStageThickness;
   else
-    softVerticalLimits(2) = (stageHeightAtHighestTracePoint ... The lowest value that the stage had to be at to clear the beam
-                             + handles.settings.current.CrashPrevention.wiggleRoom) ... Some space to breath
-                            - handles.settings.current.CrashPrevention.offset; % The vertical distance between the slot detector beam and the objective working distance
+    minPossible = min([handles.settings.current.CrashPrevention.slotOffsetToWide, ...
+                       handles.settings.current.CrashPrevention.slotOffsetToWide + handles.settings.current.CrashPrevention.wideOffsetToScan]);
+    softVerticalLimits(2) = stageHeightAtHighestTracePoint ... The lowest value that the stage had to be at to clear the beam
+                             - (minPossible ... The vertical distance between the slot detector beam and the highest working distance
+                                - handles.settings.current.CrashPrevention.wiggleRoom); % Some space to breath
     if softVerticalLimits(2) > handles.settings.current.SoftStageBoundaries.z(2)
       softVerticalLimits(2) = handles.settings.current.SoftStageBoundaries.z(2);
     end
   end
-  handles.settings.cache.zStageLimits = softVerticalLimits;
-  handles.settings.cache.sampleTop = stageHeightAtHighestTracePoint;
   handles.stageController.SetLimits(handles.settings.current.StageController.zAxisID, softVerticalLimits);
   
   % Adjust the current coordinate height so that the working distances will
   % be in focus at the highest sample point
-  focusHeight = stageHeightAtHighestTracePoint - (handles.settings.current.PositionOrigins.wide(3) + handles.settings.current.CrashPrevention.offset);
-  handles.preferences.current.CurrentCoordinates.z = focusHeight;
+  handles.preferences.current.CurrentCoordinates.z = 0.0;
   
   % Reset the speed
   handles.stageController.UseFastSpeed();
 end
 
 
-function isBlocked = IsLocationBlocked(handles)
+function isBlocked = PerformCrashPrevention_IsLocationBlocked(handles)
 % Determines if a point is blocking the slot detector beam
   value = handles.lockInAmpController.GetAuxInputValue(handles.settings.current.CrashPrevention.inputChannel);
   isBlocked = value > handles.settings.current.CrashPrevention.blockedCutoffVoltage;
@@ -990,7 +1163,7 @@ function [value, clean] = SanitizeEdit(edit, boundaries)
     value = 0;
   elseif value < boundaries(1)
     if ~isFloatEqual(value, boundaries(1), 1e-3)
-      warning('GUI:InvalidEntry', '''%g'' is below the accepted stage range. Setting to ''%g''', boundaries(1));
+      warning('GUI:InvalidEntry', '''%g'' is below the accepted stage range. Setting to ''%g''', value, boundaries(1));
     end
     value = boundaries(1);
   elseif value > boundaries(2)
@@ -1083,7 +1256,7 @@ function StepRightSmall(slider, eventdata, handles, Slider_Callback)
 end
 
 
-function TrackSlider2Edit(slider, edit, handles, axis)
+function UpdateSlider2Edit(slider, edit, handles, axis)
 % Updates the values of the edit boxes according to the values entered in
 % the sliders.
   value = ConvertSlider2Position(slider, handles.positionRanges(axis,:));
@@ -1112,32 +1285,75 @@ function handles = SwitchCamera(handles)
     
     closepreview(handles.currentCameraFeed);
   end
-  preview(newCamera, handles.CameraView);
-  axis image; % Preserve the aspect ratio
-  handles.currentCameraFeed = newCamera;
-end
-
-
-function handles = UpdateCurrentPositionToControls(handles)
-% Update the values of the edit boxes with the current values from the
-% stages themselves
-  [stagePosition, x, y, z] = DetermineStagePosition(handles);
-  handles.StagePosition = stagePosition;
-  if ~isempty(handles.StagePosition)
-    set(handles.XEdit, 'String', num2str(x));
-    set(handles.YEdit, 'String', num2str(y));
-    set(handles.ZEdit, 'String', num2str(z));
-
-    UpdateEdit2Slider(handles.XEdit, handles.XSlider, handles.positionRanges(1,:));
-    UpdateEdit2Slider(handles.YEdit, handles.YSlider, handles.positionRanges(2,:));
-    UpdateEdit2Slider(handles.ZEdit, handles.ZSlider, handles.positionRanges(3,:));
+  retry = 3;
+  while retry > 0
+    try
+      preview(newCamera, handles.CameraView);
+      axis image; % Preserve the aspect ratio
+      handles.currentCameraFeed = newCamera;
+      
+      retry = -100;
+    catch
+      retry = retry - 1;
+    end
+  end
+  
+  if retry == 0
+    uiwait(errordlg(['Unable to start camera feed after 3 attempts.' ...
+                     'Please check to ensure everything is connected properly'], ...
+                    'modal'));
   end
 end
 
 
-function UpdateFocusPosition(handles, focusPosition) %#ok<DEFNU>
-% Update the position of the Z Axis based on the best focus position
-  set(handles.ZEdit, 'String', num2str(focusPosition));
+function handles = UpdateBounds(handles)
+% Update the bounds
+  verticalBounds = GetDynamicVerticalPositionBounds(handles, handles.StagePosition);
+  handles.positionRanges(3,:) = verticalBounds;
+  
+  if handles.settings.cache.isHeatedStage
+    % Get the dynamic range of the heated stage based on the current
+    % horizontal and vertical positions
+    x = positionCoordinates(1);
+    y = positionCoordinates(2);
+    r = sqrt(x*x + y*y);
+    R = handles.settings.current.heatedStageInnerRadius;
+    
+    if r < 1e-3
+      % Use the full range if r close to the origin
+      xRange = R;
+      yRange = R;
+    else
+      % Scale the full range if r is away from the origin
+      xRange = R / r * abs(x);
+      yRange = R / r * abs(y);
+    end
+    
+    handles.positionRanges(1,:) = [-xRange, xRange];
+    handles.positionRanges(2,:) = [-yRange, yRange];
+  end
+end
+
+
+function handles = ReadCurrentPositionAndUpdateControls(handles)
+% Update the values of the edit boxes with the current values from the
+% stages themselves
+  [stagePosition, x, y, z] = DetermineStagePositionAndPositionCoordinates(handles);
+  handles.StagePosition = stagePosition;
+  if ~isempty(handles.StagePosition)
+    UpdateControls(handles, [x, y, z]);
+  end
+end
+
+
+function UpdateControls(handles, positionCoordinates)
+% Update the values on the control to the provided positionCoordinates
+  set(handles.XEdit, 'String', num2str(positionCoordinates(1)));
+  set(handles.YEdit, 'String', num2str(positionCoordinates(2)));
+  set(handles.ZEdit, 'String', num2str(positionCoordinates(3)));
+
+  UpdateEdit2Slider(handles.XEdit, handles.XSlider, handles.positionRanges(1,:));
+  UpdateEdit2Slider(handles.YEdit, handles.YSlider, handles.positionRanges(2,:));
   UpdateEdit2Slider(handles.ZEdit, handles.ZSlider, handles.positionRanges(3,:));
 end
 
@@ -1155,6 +1371,30 @@ function UpdateEdit2Slider(edit, slider, boundaries)
   sliderValue = stageRatio * (sliderMax - sliderMin) + sliderMin;
   set(slider, 'Value', sliderValue);
   set(edit, 'String', clean);
+end
+
+
+function UpdateFocusPosition(handles, focusPosition) %#ok<DEFNU>
+% Update the position of the Z Axis based on the best focus position
+  set(handles.ZEdit, 'String', num2str(focusPosition));
+  UpdateEdit2Slider(handles.ZEdit, handles.ZSlider, handles.positionRanges(3,:));
+end
+
+
+function handles = UpdateListeners(handles)
+% Updates the listeners for the sliders
+  if isfield(handles, 'Listeners')
+    delete(handles.Listeners.XSlider);
+    delete(handles.Listeners.YSlider);
+    delete(handles.Listeners.ZSlider);
+  end
+  
+  handles.Listeners.XSlider = addlistener(handles.XSlider, 'Value', 'PreSet',...
+    @(~, ~) UpdateSlider2Edit(handles.XSlider, handles.XEdit, handles, 1));
+  handles.Listeners.YSlider = addlistener(handles.YSlider, 'Value', 'PreSet',...
+    @(~, ~) UpdateSlider2Edit(handles.YSlider, handles.YEdit, handles, 2));
+  handles.Listeners.ZSlider = addlistener(handles.ZSlider, 'Value', 'PreSet',...
+    @(~, ~) UpdateSlider2Edit(handles.ZSlider, handles.ZEdit, handles, 3));
 end
 
 
@@ -1191,13 +1431,4 @@ function handles = UpdateStepSizeGroup(handles, eventdata)
   set(handles.XSlider, 'SliderStep', sliderStep);
   set(handles.YSlider, 'SliderStep', sliderStep);
   set(handles.ZSlider, 'SliderStep', sliderStep);
-end
-
-
-function UpdateSlider2Edit(slider, axis, edit, handles)
-% Updates the values of the edit boxes according to the values of the
-% sliders.
-  TrackSlider2Edit(slider, edit, handles, axis)
-  
-  MoveStageToSliderPosition(axis, slider, handles);
 end

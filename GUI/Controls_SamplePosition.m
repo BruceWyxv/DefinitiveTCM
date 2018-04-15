@@ -208,9 +208,9 @@ function handles = UpdateCameraSelectionGroup(handles, data)
   handles = UpdateLinkCheckbox(handles);
   
   % Update the edit boxes
-  handles = Controls('UpdateCurrentPositionToControls', handles);
+  handles = Controls('ReadCurrentPositionAndUpdateControls', handles);
 end
-
+  
 
 function handles = UpdateLinkCheckbox(handles)
 % Update GUI based on the state of the LinkStageToCamera checkbox

@@ -58,6 +58,7 @@ function CrashPrevention_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<
 
   % Check the input arguments
   parser = inputParser;
+  parser.addParameter('preferences', '', @(x) isa(x, 'ConfigurationFile'));
   parser.addParameter('settings', '', @(x) isa(x, 'ConfigurationFile'));
   % Parse the input arguments
   parser.KeepUnmatched = true;
@@ -66,13 +67,17 @@ function CrashPrevention_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<
   catch me
     error('Error when trying to parse input arguments:   %s', me.message);
   end
+  handles.preferences = parser.Results.preferences.current;
   handles.settings = parser.Results.settings.current;
+  
+  % Set the window position
+  movegui(hObject, handles.preferences.WindowPositions.crashPrevention);
+  movegui(hObject, 'onscreen');
   
   % Initialize the plot
   handles.profile = plot(handles.Profile, 1, nan, 'LineStyle', '-', 'Marker', 'none');
   xLimits = handles.settings.CrashPrevention.scanWidth / 2.0;
-  yLimits = handles.settings.SoftStageBoundaries.z;
-  yLimits(2) = handles.settings.CrashPrevention.stageHeight + 1;
+  yLimits = handles.settings.SoftStageBoundaries.z + [-1.0, 1.0];
   set(handles.Profile, 'XLim', [-xLimits, xLimits]);
   set(handles.Profile, 'YLim', yLimits);
   set(handles.Profile, 'YDir', 'reverse');
@@ -100,8 +105,15 @@ function CrashPreventionWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok
 % hObject    handle to CrashPreventionWindow (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-
-  % Hint: delete(hObject) closes the figure
+  currentPosition = getpixelposition(hObject);
+  
+  % Check to see if 'handles' is in a valid state
+  if isfield(handles, 'preferences')
+    if currentPosition(1:2) ~= handles.preferences.WindowPositions.crashPrevention
+      handles.preferences.current.WindowPositions.crashPrevention = currentPosition(1:2);
+    end
+  end
+  
   if IsCancelling(handles)
     delete(hObject);
   end
@@ -128,6 +140,16 @@ function Close(hObject) %#ok<DEFNU>
 % Close the window
   handles = guidata(hObject);
   set(handles.HaltButton, 'Enable', 'Off');
+  
+  currentPosition = getpixelposition(hObject);
+  
+  % Check to see if 'handles' is in a valid state
+  if isfield(handles, 'preferences')
+    if currentPosition(1:2) ~= handles.preferences.WindowPositions.crashPrevention
+      handles.preferences.current.WindowPositions.crashPrevention = currentPosition(1:2);
+    end
+  end
+  
   delete(hObject);
 end
 

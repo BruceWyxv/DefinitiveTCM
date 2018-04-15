@@ -9,6 +9,7 @@ classdef SR830_Control < GPIB_Interface
     maxAuxOutputVoltage = 10.5; % Maximum voltage that can be sent via the auxilliary outputs
     minAuxOutputVoltage = -10.5; % Minimum voltage that can be sent via the auxilliary outputs
     phaseOutputIndex = 4; % Data output that corresponds to the phase difference
+    sensitivityIterations = 5; % Maximum number of iterations to use when detected the most appropriate sensitivity
   end
   
   properties (SetAccess = immutable, GetAccess = protected)
@@ -40,6 +41,15 @@ classdef SR830_Control < GPIB_Interface
       myself.initialTimeConstantIndex = myself.GetTimeConstantIndex();
       myself.valueOfSensitivityConstantIndex = @database.GetLockInAmpSensitivityConstant;
       myself.valueOfTimeConstantIndex = @database.GetLockInAmpTimeConstant;
+    end
+    
+    function AdaptSensitivity(myself)
+    % Use the auto-gain function to get the best gain for the current
+    % signal
+      GPIB_Interface.Communicate(myself, 'AGAN');
+      
+      % Set the internal sensitivity constant index
+      SetSensitivityConstantIndex(myself, GetSensitivityConstantIndex(myself));
     end
     
     function Chill(myself)

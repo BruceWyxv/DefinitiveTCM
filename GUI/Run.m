@@ -193,6 +193,7 @@ function [centered, goodToGo] = Center(handles) %#ok<DEFNU>
   timeConstant = handles.settings.current.CenterScan.lockInAmpTimeConstant;
   handles.lockInAmpController.SetTimeConstantValue(timeConstant);
   handles.lockInAmpController.Chill();
+  handles.lockInAmpController.AdaptSensitivity();
   
   % Create the data structures
   amplitude = NaN(2, steps);
@@ -440,9 +441,6 @@ function [data, success] = Data(handles) %#ok<DEFNU>
     end
     legend(handles.AmplitudePlot, legendItems{1:f}, 'Location', 'South');
     legend(handles.PhasePlot, legendItems{1:f}, 'Location', 'South');
-
-    % Account for hysteresis of the stage
-    handles.laserScanController.MinimizeHysteresis(scanAxes, scanPositions(:,1:2));
     
     % Set up the equipment
     handles.pumpLaserController.SetFrequency(frequency);
@@ -451,7 +449,15 @@ function [data, success] = Data(handles) %#ok<DEFNU>
     else
       handles.lockInAmpController.SetTimeConstantValue(timeConstant);
     end
+    
+    % Adapt to the best sensitivity for the current frequency with the
+    % lasers on top of each other
+    handles.laserScanController.MoveAxis(scanAxes, currentPositions);
     handles.lockInAmpController.Chill();
+    handles.lockInAmpController.AdaptSensitivity();
+
+    % Account for hysteresis of the stage
+    handles.laserScanController.MinimizeHysteresis(scanAxes, scanPositions(:,1:2));
     
     for i = 1:steps
       set(handles.ProgressText, 'String', sprintf('%s - Position: %i of %i', baseProgressString, i, steps));
@@ -566,10 +572,10 @@ function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
   end
   stepSize = handles.settings.current.FocusScan.scanDistance / (steps - 1);
   halfPosition = handles.settings.current.FocusScan.scanDistance / 2;
-  currentPosition = handles.stageController.GetAbsoluteCoordinates(zAxisID);
-  ZOriginPosition = handles.settings.current.PositionOrigins.scan(3);
-  relativeZPosition = currentPosition - ZOriginPosition;
-  positions = (currentPosition - halfPosition):stepSize:(currentPosition + halfPosition);
+  stagePosition = handles.stageController.GetAbsoluteCoordinates(zAxisID);
+  relativePositions = Controls('ConvertStages2PositionCoordinates', handles, 'ScanningObjective', [0, 0, stagePosition]);
+  relativeZPosition = relativePositions(3);
+  positions = (stagePosition - halfPosition):stepSize:(stagePosition + halfPosition);
   relativePositions = (relativeZPosition - halfPosition):stepSize:(relativeZPosition + halfPosition);
   
   % Set the controller settings
@@ -577,6 +583,7 @@ function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
   timeConstant = handles.settings.current.FocusScan.lockInAmpTimeConstant;
   handles.lockInAmpController.SetTimeConstantValue(timeConstant);
   handles.lockInAmpController.Chill();
+  handles.lockInAmpController.AdaptSensitivity();
   
   % Create the data structures
   amplitude = NaN(1, steps);
@@ -635,12 +642,12 @@ function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
     % Fit the data and look for a maximum in the amplitude
     [coefficients, ~, mu] = polyfit(positions, amplitude, 5);
     fineStepSize = stepSize / 25;
-    finePositions = (currentPosition - halfPosition):fineStepSize:(currentPosition + halfPosition);
+    finePositions = (stagePosition - halfPosition):fineStepSize:(stagePosition + halfPosition);
     fineRelativePositions = (relativeZPosition - halfPosition):fineStepSize:(relativeZPosition + halfPosition);
     evaluatedFit = polyval(coefficients, finePositions, [], mu);
     [~, maxPositionIndex] = max(evaluatedFit);
     maxPosition = finePositions(maxPositionIndex);
-    relativeFocusPosition = maxPosition - ZOriginPosition;
+    relativeFocusPosition = fineRelativePositions(maxPositionIndex);
 
     % Move the stage to the ideal position
     if maxPosition > positions(end-2)
@@ -681,7 +688,7 @@ function [focused, goodToGo, relativeFocusPosition] = Focus(handles) %#ok<DEFNU>
     handles.stageController.WaitForAction(zAxisID);
   else
     % Move the stages back to their original positions
-    handles.stageController.MoveAxis(zAxisID, currentPosition);
+    handles.stageController.MoveAxis(zAxisID, stagePosition);
   end
   
   % Prepare for the next process to run

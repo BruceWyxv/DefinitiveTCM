@@ -15,10 +15,11 @@ classdef ESP300_Control < GPIB_Interface
   
   properties (SetAccess = private, GetAccess = public)
     maxStages; % The maximum ID of stages available
-    slowStageAccels; % Fast stage accelerations
-    slowStageSpeeds; % Fast stage speeds
-    fastStageAccels; % Slow stage accelerations
-    fastStageSpeeds; % Slow stage speeds
+    fastStageAccels; % Fast stage accelerations
+    fastStageSpeeds; % Fast stage speeds
+    slowStageAccels; % Slow stage accelerations
+    slowStageSpeeds; % Slow stage speeds
+    superSlowSpeedFactor; % Fraction of slow speed to use for super slow
   end
   
   methods
@@ -39,6 +40,7 @@ classdef ESP300_Control < GPIB_Interface
       % Get the stage speeds
       myself.originalStageAccels = myself.GetStageAcceleration(1:myself.maxStages);
       myself.originalStageSpeeds = myself.GetStageSpeed(1:myself.maxStages);
+      %%% xAxis
       if isfield(settings, 'xAxisID')
         if ((isfield(settings, 'xDefaultAcceleration') ... 
               && myself.originalStageAccels(settings.xAxisID) ~= settings.xDefaultAcceleration) ...
@@ -50,7 +52,8 @@ classdef ESP300_Control < GPIB_Interface
        char(13) 'been restarted after a crash, or 2) if the stage has ' ...
        char(13) 'been changed out. For (1) don''t worry. For (2), ' ...
        char(13) 'please update the file "Settings.ini" with the new ' ...
-       char(13) 'values.']);
+       char(13) 'values for ''xDefaultAcceleration'' and ' ...
+                '''xDefaultSpeed''.']);
           myself.originalStageAccels(settings.xAxisID) = settings.xDefaultAcceleration;
           myself.originalStageSpeeds(settings.xAxisID) = settings.xDefaultSpeed;
         end
@@ -65,6 +68,7 @@ classdef ESP300_Control < GPIB_Interface
         myself.ScaleSlowSpeed(settings.xAxisID, accelerationScale(1), speedScale(1));
         myself.ScaleFastSpeed(settings.xAxisID, accelerationScale(2), speedScale(2));
       end
+      %%% yAxis
       if isfield(settings, 'yAxisID')
         if ((isfield(settings, 'yDefaultAcceleration') ... 
               && myself.originalStageAccels(settings.yAxisID) ~= settings.yDefaultAcceleration) ...
@@ -76,7 +80,8 @@ classdef ESP300_Control < GPIB_Interface
        char(13) 'been restarted after a crash, or 2) if the stage has ' ...
        char(13) 'been changed out. For (1) don''t worry. For (2), ' ...
        char(13) 'please update the file "Settings.ini" with the new ' ...
-       char(13) 'values.']);
+       char(13) 'values for ''yDefaultAcceleration'' and ' ...
+                '''yDefaultSpeed''.']);
           myself.originalStageAccels(settings.yAxisID) = settings.yDefaultAcceleration;
           myself.originalStageSpeeds(settings.yAxisID) = settings.yDefaultSpeed;
         end
@@ -91,6 +96,7 @@ classdef ESP300_Control < GPIB_Interface
         myself.ScaleSlowSpeed(settings.yAxisID, accelerationScale(1), speedScale(1));
         myself.ScaleFastSpeed(settings.yAxisID, accelerationScale(2), speedScale(2));
       end
+      %%% zAxis
       if isfield(settings, 'zAxisID')
         if ((isfield(settings, 'zDefaultAcceleration') ... 
               && myself.originalStageAccels(settings.zAxisID) ~= settings.zDefaultAcceleration) ...
@@ -102,7 +108,8 @@ classdef ESP300_Control < GPIB_Interface
        char(13) 'been restarted after a crash, or 2) if the stage has ' ...
        char(13) 'been changed out. For (1) don''t worry. For (2), ' ...
        char(13) 'please update the file "Settings.ini" with the new ' ...
-       char(13) 'values.']);
+       char(13) 'values for ''zDefaultAcceleration'' and ' ...
+                '''zDefaultSpeed''.']);
           myself.originalStageAccels(settings.zAxisID) = settings.zDefaultAcceleration;
           myself.originalStageSpeeds(settings.zAxisID) = settings.zDefaultSpeed;
         end
@@ -117,6 +124,17 @@ classdef ESP300_Control < GPIB_Interface
         myself.ScaleSlowSpeed(settings.zAxisID, accelerationScale(1), speedScale(1));
         myself.ScaleFastSpeed(settings.zAxisID, accelerationScale(2), speedScale(2));
       end
+      %%% Super Slow Speed Factor
+      superSlowSpeedFactor = 0.33;
+      if isfield(settings, 'superSlowSpeedFactor')
+        superSlowSpeedFactor = settings.superSlowSpeedFactor;
+      end
+      if superSlowSpeedFactor < 0.1
+        superSlowSpeedFactor = 0.1;
+      elseif superSlowSpeedFactor > 1.0
+        superSlowSpeedFactor = 1.0;
+      end
+      myself.superSlowSpeedFactor = superSlowSpeedFactor;
       
       myself.UseSlowSpeed();
     end
@@ -435,7 +453,7 @@ classdef ESP300_Control < GPIB_Interface
       if nargin == 1
         axes = 1:myself.maxStages;
       end
-      myself.SetAxesSpeed(axes, myself.slowStageAccels(axes), myself.slowStageSpeeds(axes) * 0.33);
+      myself.SetAxesSpeed(axes, myself.slowStageAccels(axes), myself.slowStageSpeeds(axes) * myself.superSlowSpeedFactor);
     end
     
     function WaitForAction(myself, axes, varargin)

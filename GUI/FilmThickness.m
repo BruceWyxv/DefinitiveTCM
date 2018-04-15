@@ -22,7 +22,7 @@ function varargout = FilmThickness(varargin)
 
   % Edit the above text to modify the response to help FilmThickness
 
-  % Last Modified by GUIDE v2.5 11-May-2017 14:38:32
+  % Last Modified by GUIDE v2.5 12-Apr-2018 11:51:17
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -173,6 +173,21 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
+% --- Executes on button press in AutoSensitivity.
+function AutoSensitivity_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to AutoSensitivity (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  set(hObject, 'Enable', 'Off');
+  set(handles.CollectEmptyButton, 'Enable', 'Off');
+  set(handles.CollectSampleButton, 'Enable', 'Off');
+  handles.lockInAmpController.AdaptSensitivity();
+  set(hObject, 'Enable', 'On');
+  set(handles.CollectEmptyButton, 'Enable', 'On');
+  set(handles.CollectSampleButton, 'Enable', 'On');
+end
+
+
 function CollectEmptyButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to CollectEmptyButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -408,6 +423,7 @@ function UpdatePlot(obj, event, hObject, handles) %#ok<INUSL>
   set(handles.powerHistory, 'XData', newIterations, 'YData', newHistories);
   handles.PowerChart.XLim = [(startIteration - 2), (endIteration + 2)];
 end
+
 
 function handles = UpdateTransmissionAndFilmThickness(handles)
 % Update the fields for the transmission ratio and film thickness if the

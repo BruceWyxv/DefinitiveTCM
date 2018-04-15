@@ -8,8 +8,8 @@ classdef GPIB_Interface < handle
 % and passed around as often as needed.
 
   % Define properties that can only be set in the class constructor, and
-  % read only by this class
-  properties (SetAccess = immutable, GetAccess = private)
+  % read only by this class and subclasses
+  properties (SetAccess = immutable, GetAccess = protected)
     deviceHandle; % Handle to the device
   end
   
@@ -82,7 +82,7 @@ classdef GPIB_Interface < handle
   
   % Define static methods with access by this class and subclasses
   methods (Static = true, Access = protected)
-    function reply = Communicate(myself, command)
+    function reply = Communicate(implementation, command)
     % Sends a command to the device, optionally requesting a reply
       % Check for valid input
       if ~ischar(command)
@@ -90,29 +90,29 @@ classdef GPIB_Interface < handle
         warning('GPIB_Interface:InvalidCommand', 'Invalid command of type "%s"\nA string is required. Command ignored.\n', class(command));
       else
         % Send the command and record the response
-        if myself.good
-          fprintf(myself.deviceHandle, command);
+        if implementation.good
+          fprintf(implementation.deviceHandle, command);
           
           % Wait just briefly to allow the device to process the previous
           % command.
-          pause(myself.commandDelay);
+          pause(implementation.commandDelay);
           
           % Get a reply value if one was requested
           if nargout == 1
-            reply = fscanf(myself.deviceHandle);
+            reply = fscanf(implementation.deviceHandle);
           else
             reply = '';
           end
         else
-          warning('GPIB_Interface:BadInterface', 'Device interface for "%s" is invalid. Ignoring command "%s".', myself.name, command);
+          warning('GPIB_Interface:BadInterface', 'Device interface for "%s" is invalid. Ignoring command "%s".', implementation.name, command);
         end
 
         % Store the command and reply
-        if ~myself.temporary
-          myself.command = command;
-          myself.reply = reply;
+        if ~implementation.temporary
+          implementation.command = command;
+          implementation.reply = reply;
         else
-          myself.temporary = false;
+          implementation.temporary = false;
         end
       end
     end
@@ -128,6 +128,10 @@ classdef GPIB_Interface < handle
       end
       
       name = sprintf('GPIBDevice%02i', id);
+    end
+    
+    function postCommunicate(myself) %#ok<INUSD>
+    % Do nothing, available for reimplementation by subclasses
     end
   end
   
