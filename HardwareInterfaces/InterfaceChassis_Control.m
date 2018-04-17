@@ -102,7 +102,7 @@ classdef InterfaceChassis_Control < RS232_Interface
     end
     
     function ConfigureForPositionSampleLoad(myself)
-    % Configure the channels to measure the return power of the probe laser
+    % Configure the system electronics for loading a sample onto the stage
     %  State  0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
     %     ON  X   X           X                                            
     %    OFF                              X   X   X       X   X   X        
@@ -113,7 +113,7 @@ classdef InterfaceChassis_Control < RS232_Interface
     end
     
     function ConfigureForPositionScan(myself)
-    % Configure the channels to measure the return power of the probe laser
+    % Configure the inputs for collecting data
     %  State  0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
     %     ON  X   X   X   X       X                                        
     %    OFF                              X   X   X       X   X   X        
@@ -124,7 +124,8 @@ classdef InterfaceChassis_Control < RS232_Interface
     end
     
     function ConfigureForPositionWideImage(myself)
-    % Configure the channels to measure the return power of the probe laser
+    % Configure the system electronics for vieweing at the wide angle
+    % position
     %  State  0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
     %     ON  X   X       X           X                                    
     %    OFF                              X   X   X       X   X   X        
@@ -135,7 +136,8 @@ classdef InterfaceChassis_Control < RS232_Interface
     end
     
     function ConfigureForPositionUnknown(myself)
-    % Configure the channels to measure the return power of the probe laser
+    % Set the system for a general unknown state that will not hurt
+    % anything if it is left like this indefinitely
     %  State  0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
     %     ON  X   X       X   X   X   X                                    
     %    OFF                              X   X   X       X   X   X        

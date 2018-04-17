@@ -22,7 +22,7 @@ function varargout = Controls_CollectData_Settings(varargin)
 
 % Edit the above text to modify the response to help Controls_CollectData_Settings
 
-% Last Modified by GUIDE v2.5 26-Aug-2016 12:04:36
+% Last Modified by GUIDE v2.5 16-Apr-2018 12:03:55
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -58,6 +58,9 @@ function Controls_CollectData_Settings_OpeningFcn(hObject, eventdata, handles, v
   % Define the input arguments
   parser = inputParser;
   parser.addParameter('settings', '');
+  parser.addParameter('interfaceController', '');
+  parser.addParameter('lockInAmpController', '');
+  parser.addParameter('probeLaserController', '');
   
   % Check the input arguments
   parser.KeepUnmatched = true;
@@ -76,12 +79,19 @@ function Controls_CollectData_Settings_OpeningFcn(hObject, eventdata, handles, v
   handles.settings = handles.originalSettings.current;
   handles.database = Database();
   
+  % Get the required hardware controls
+  handles.interfaceController = parser.Results.interfaceController;
+  handles.lockInAmpController = parser.Results.lockInAmpController;
+  handles.probeLaserController = parser.Results.probeLaserController;
+  
   % Initialize the controls and handle values
   set(handles.SkipCenterScanCheckbox, 'Value', handles.settings.DataScan.skipCenterScan);
   set(handles.SkipFocusScanCheckbox, 'Value', handles.settings.DataScan.skipFocusScan);
   set(handles.ScanDirectionEdit, 'String', sprintf('%g', handles.settings.DataScan.scanDirection));
+  set(handles.ScanDistanceEdit, 'String', sprintf('%g', handles.settings.DataScan.scanDistance * handles.settings.Analysis.scanScaling));
   set(handles.StepsEdit, 'String', sprintf('%i', handles.settings.DataScan.steps));
   set(handles.LaserPowerEdit, 'String', sprintf('%g', handles.settings.FunctionGenerator.power));
+  set(handles.DetectorDCSignalEdit, 'String', '--');
 
   % Update handles structure
   guidata(hObject, handles);
@@ -102,19 +112,19 @@ function varargout = Controls_CollectData_Settings_OutputFcn(hObject, eventdata,
 end
 
 
-function SettingsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
-% hObject    handle to SettingsWindow (see GCBO)
+function DetectorDCSignalEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to DetectorDCSignalEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
+% handles    empty - handles not created until after all CreateFcns called
 
-  % Hint: delete(hObject) closes the figure
-  Close(hObject, handles, false);
+  % Hint: edit controls usually have a white background on Windows.
+  %       See ISPC and COMPUTER.
+  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+      set(hObject,'BackgroundColor','white');
+  end
 end
 
 
-% --------------------------------------------------------------------
-% --------------------------------------------------------------------
-% --------------------------------------------------------------------
 function ScanDirectionEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 % hObject    handle to ScanDirectionEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -141,11 +151,69 @@ function StepsEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
 end
 
 
+function LaserPowerEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to LaserPowerEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+  % Hint: edit controls usually have a white background on Windows.
+  %       See ISPC and COMPUTER.
+  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+      set(hObject,'BackgroundColor','white');
+  end
+end
+
+
+function ScanDistanceEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
+% hObject    handle to ScanDistanceEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+  % Hint: edit controls usually have a white background on Windows.
+  %       See ISPC and COMPUTER.
+  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+      set(hObject,'BackgroundColor','white');
+  end
+end
+
+
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
+% --------------------------------------------------------------------
 function CancelButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to CancelButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
   Close(hObject.Parent, handles, false);
+end
+
+
+function CollectDetectorDCSignalButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to CollectDetectorDCSignalButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  text = get(hObject, 'String');
+  set(hObject, 'String', 'Reading...');
+  set(hObject, 'Enable', 'Off');
+  if handles.probeLaserController.isOn
+    % Configure for reading the probe power CD signal
+    handles.interfaceController.ConfigureForProbePowerDiagnostic();
+    
+    % Get the value and set the text in the edit box
+    pause(10.0);
+    value = handles.lockInAmpController.GetAuxInputValue(handles.settings.DataScan.inputChannelDCSignal);
+    set(handles.DetectorDCSignalEdit, 'String', sprintf('%g', value));
+    
+    % Return to the data scan configuration
+    handles.interfaceController.ConfigureForPositionScan();
+  else
+    uiwait(errordlg(...
+            ['The probe laser is not on! No measurement can be taken.' ...
+             '\nPlease exit the "Advanced Settings" dialog and turn ' ...
+             'the probe laser on first.', 'Probe Laser Off', 'modal']));
+  end
+  set(hObject, 'String', text);
+  set(hObject, 'Enable', 'On');
 end
 
 
@@ -186,19 +254,6 @@ function LaserPowerEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 end
 
 
-function LaserPowerEdit_CreateFcn(hObject, eventdata, handles) %#ok<INUSD,DEFNU>
-% hObject    handle to LaserPowerEdit (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-  % Hint: edit controls usually have a white background on Windows.
-  %       See ISPC and COMPUTER.
-  if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-      set(hObject,'BackgroundColor','white');
-  end
-end
-
-
 function ScanDirectionEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to ScanDirectionEdit (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -224,6 +279,34 @@ function ScanDirectionEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFN
   handles.settings.DataScan.scanDirection = value;
   clean = num2str(value);
   set(hObject, 'String', clean);
+  
+  % Save the update
+  guidata(hObject.Parent, handles);
+end
+
+
+function ScanDistanceEdit_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to ScanDistanceEdit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+  % Hints: get(hObject,'String') returns contents of ScanDistanceEdit as text
+  %        str2double(get(hObject,'String')) returns contents of ScanDistanceEdit as a double
+  window = [1.5 50.0];
+  value = str2double(get(hObject,'String'));
+  
+  if value < window(1)
+    value = window(1);
+  elseif value > window(2)
+    value = window(2);
+  end
+  
+  % Ensure the input is sanitized
+  clean = num2str(value);
+  set(hObject, 'String', clean);
+  
+  % Convert from ?m to mm that corresponds to the scan stage movement
+  handles.settings.DataScan.scanDistance = value / handles.settings.Analysis.scanScaling;
   
   % Save the update
   guidata(hObject.Parent, handles);
@@ -282,6 +365,16 @@ end
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
 % --------------------------------------------------------------------
+function SettingsWindow_CloseRequestFcn(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
+% hObject    handle to SettingsWindow (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+  % Hint: delete(hObject) closes the figure
+  Close(hObject, handles, false);
+end
+
+
 function Close(myself, handles, saveSettings)
 % Close the window, saving the settings if requested
   if saveSettings
@@ -290,4 +383,3 @@ function Close(myself, handles, saveSettings)
   
   delete(myself);
 end
-

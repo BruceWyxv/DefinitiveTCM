@@ -73,7 +73,12 @@ function AdvancedSettingsButton_Callback(hObject, eventdata, handles) %#ok<INUSL
 % hObject    handle to AdvancedSettingsButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-  settingsWindow = Controls_CollectData_Settings('Settings', handles.settings);
+  settingsWindow =...
+    Controls_CollectData_Settings('Settings', handles.settings,...
+                                  'InterfaceController', handles.interfaceController,...
+                                  'LockInAmpController', handles.lockInAmpController,...
+                                  'ProbeLaserController', handles.probeLaserController);
+
   uiwait(settingsWindow);
   
   % Update any hardware settings that can be impacted by changes in the 
@@ -374,7 +379,11 @@ end
 
 function array = SampleInfoLinear2Array(linear)
 % Convert a string with literal newline characters into a cell array
-  array = char(strtrim(strsplit(linear, {'\\n'})));
+  if isempty(linear)
+    array = '';
+  else
+    array = char(strtrim(strsplit(linear, {'\\n'})));
+  end
 end
 
 

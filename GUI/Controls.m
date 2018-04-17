@@ -712,7 +712,7 @@ function origin = GetOrigin(position, handles)
     case 'ScanningObjective';
       origin = handles.settings.current.PositionOrigins.scan;
       origin(3) = handles.settings.cache.sampleTop ...
-                  - handles.settings.current.CrashPrevention.slotOffsetToWide;
+                  - handles.settings.current.CrashPrevention.slotOffsetToWide ...
                   - handles.settings.current.CrashPrevention.wideOffsetToScan;
       
     otherwise
@@ -857,6 +857,11 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
     % Check if the sample loading position is involved
     fromSampleLoading = strcmp('SampleLoading', handles.StagePosition);
     toSampleLoading = strcmp('SampleLoading', handles.CameraPosition);
+      
+    % Get the coordinates
+    current = [handles.preferences.current.CurrentCoordinates.x, ...
+               handles.preferences.current.CurrentCoordinates.y, ...
+               handles.preferences.current.CurrentCoordinates.z];
 
     % Get the current stage positions
     if fromSampleLoading
@@ -873,21 +878,10 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
         return;
       end
       
-      % Set the coordinates
-      current = [handles.preferences.current.CurrentCoordinates.x, ...
-                 handles.preferences.current.CurrentCoordinates.y, ...
-                 handles.preferences.current.CurrentCoordinates.z];
       handles.EnableMotors = true;
     else
-      current = [str2double(get(handles.XEdit, 'String')) ...
-                 str2double(get(handles.YEdit, 'String')) ...
-                 str2double(get(handles.ZEdit, 'String'))];
-      
       if toSampleLoading
-        handles.preferences.current.CurrentCoordinates.x = current(1);
-        handles.preferences.current.CurrentCoordinates.y = current(2);
-        handles.preferences.current.CurrentCoordinates.z = current(3);
-        
+        current = [0.0, 0.0, 0.0];
         handles.EnableMotors = false;
       end
     end
@@ -905,11 +899,10 @@ function [handles, returnToSampleLoadingPosition] = MoveStageToCamera(handles)  
     end
     
     % Get the new origin and calculate the new position
-    cameraOrigin = GetOrigin(handles.CameraPosition, handles);
-    new = current + cameraOrigin;
     % Move the axis, showing a progress bar
     % Make sure to drop the Z axis down first, second move the X and Y axes,
     % then finally move the Z axis to its final position
+    new = ConvertPositions2StageCoordinates(handles, handles.CameraPosition, current);
     handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, handles.settings.current.SafeTraverseHeight.z, true);
     handles.stageController.MoveAxis([handles.settings.current.StageController.xAxisID, handles.settings.current.StageController.yAxisID], new(1:2), true);
     handles.stageController.MoveAxis(handles.settings.current.StageController.zAxisID, new(3), true);

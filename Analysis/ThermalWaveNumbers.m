@@ -480,7 +480,11 @@ classdef ThermalWaveNumbers < handle
       numberOfSteps = length(data.positions);
       numberOfFrequencies = length(data.frequencies);
 
-      % Scale the data so that the positions reflect the actual distances
+      % Scale the data so that the positions reflect the actual distances.
+      % The data scan is recorded in mm as the stage positions, but the
+      % analysis operates in microns. The expected value for scanScaling is
+      % 24, meaning that 1 mm traveled by the stage results in a 24 micron
+      % travel by the laser.
       actualPositions = data.positions * settings.current.Analysis.scanScaling;
 
       % We will evaluate only the central portion
