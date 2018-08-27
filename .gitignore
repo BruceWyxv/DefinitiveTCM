@@ -1,3 +1,8 @@
 *.asv
 /Archive
 /Manuals
+/jacobianest.m
+/loaddata.m
+/parmerror2.m
+/parmerrorss.m
+/TWM.m

@@ -22,7 +22,7 @@ function varargout = StartAnalysis(varargin)
 
 % Edit the above text to modify the response to help StartAnalysis
 
-% Last Modified by GUIDE v2.5 30-Aug-2016 13:33:49
+% Last Modified by GUIDE v2.5 13-Jun-2018 11:14:20
 
   % Begin initialization code - DO NOT EDIT
   gui_Singleton = 1;
@@ -459,6 +459,15 @@ function RefreshDatabaseButton_Callback(hObject, eventdata, handles) %#ok<INUSL,
 end
 
 
+function ShowResultsButton_Callback(hObject, eventdata, handles) %#ok<DEFNU,INUSL>
+% hObject    handle to ShowResultsButton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+  message = MakeResultsMessage(handles, handles.results);
+  msgbox(message, 'Analysis Results');
+end
+
+
 function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DEFNU>
 % hObject    handle to StartAnalysisButton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -482,99 +491,72 @@ function StartAnalysisButton_Callback(hObject, eventdata, handles) %#ok<INUSL,DE
   % completed
   if results.fminsearchOutput.exitflag == 1
     handles.preferences.current.CollectData.savePath = handles.file;
-  end
   
-  % Summarize the fitting results
-  fittedValues = results.allProperties;
-  mask = results.fittedPropertiesMask;
-  finalChiSquared = results.chiSquared;
-  standardError = results.standardError();
-  properties = FitProperties.GetArrayOfProperties();
-  numberOfProperties = length(properties);
-  propertyNames = cell(1, numberOfProperties);
-  values = Num2Engr(fittedValues);
-  for p = 1:length(properties)
-    propertyNames{p} = FitProperties.GetName(properties(p));
-  end
-  maskMark = '*';
-  message = cell(1, numberOfProperties + 6);
-  message{1} = sprintf('Fitting results:   (%sconstant value, not fitted)', maskMark);
-  message{3} = sprintf('Goodness-of-Fit:   %s', Num2Engr(finalChiSquared));
-  cellOfErrors = Num2Engr(standardError);
-  if handles.settings.current.Analysis.skipErrorAnalysis == 1
-    standardErrorString = 'Error analysis not performed';
-  else
-    standardErrorString = '';
-    for i = 1:length(cellOfErrors);
-      standardErrorString = [standardErrorString, ' ', cellOfErrors{i}]; %#ok<AGROW>
-    end
-    standardErrorString = strtrim(standardErrorString);
-  end
-  message{4} = sprintf('Standard Error:   ±%s', standardErrorString);
-  message{numberOfProperties + 6} = 'Would you like to save the data?';
-  for p = 1:length(properties)
-    if mask(p)
-      maskIndicator = '';
-    else
-      maskIndicator = maskMark;
-    end
-    message{p + 4} = sprintf('%s%s:   %s', maskIndicator, propertyNames{p}, values{p});
-  end
-  
-  % Display the results and ask the user if they want to save
-  saveFile = true;
-  excelExtension = 'xlsx';
-  [directory, fileName, ~] = fileparts(handles.file);
-  excelFile = fullfile(directory, strcat(fileName, '.', excelExtension));
-  choice = questdlg(message, 'Save data...', 'Yes', 'No', 'Yes');
-  switch choice
-    case 'Yes'
-      overwrite = false;
-      filters = {strcat('*.',  excelExtension), 'Excel Spreadsheet';...
-                 '*.*', 'All Files'};
-      [file, directory, ~] = uiputfile(filters, 'Save Data File...', excelFile);
-      excelFile = fullfile(directory, file);
-      
-      while exist(excelFile, 'file') && ~overwrite && ~strcmp(choice, 'Cancel');
-        message = sprintf('File ''%s'' already exists.\n\nWhat would you like to do?', excelFile);
-        choice = questdlg(message, 'File exists!', 'Overwrite', 'Cancel', 'Change Name', 'Overwrite');
-        switch choice
-          case 'Cancel'
-            saveFile = false;
-            
-          case 'Change Name'
-            [file, directory, ~] = uiputfile(filters, 'Save Data File...', excelFile);
-            excelFile = fullfile(directory, file);
-            
-          case 'Overwrite'
-            overwrite = true;
+    % Summarize the fitting results
+    message = MakeResultsMessage(handles, results);
+    message{length(message) + 2} = 'Would you like to save the data?';
+
+    % Display the results and ask the user if they want to save
+    saveFile = true;
+    excelExtension = 'xlsx';
+    [directory, fileName, ~] = fileparts(handles.file);
+    excelFile = fullfile(directory, strcat(fileName, '.', excelExtension));
+    choice = questdlg(message, 'Save data...', 'Yes', 'No', 'Yes');
+    switch choice
+      case 'Yes'
+        overwrite = false;
+        filters = {strcat('*.',  excelExtension), 'Excel Spreadsheet';...
+                   '*.*', 'All Files'};
+        [file, directory, ~] = uiputfile(filters, 'Save Data File...', excelFile);
+        excelFile = fullfile(directory, file);
+
+        while exist(excelFile, 'file') && ~overwrite && ~strcmp(choice, 'Cancel');
+          message = sprintf('File ''%s'' already exists.\n\nWhat would you like to do?', excelFile);
+          choice = questdlg(message, 'File exists!', 'Overwrite', 'Cancel', 'Change Name', 'Overwrite');
+          switch choice
+            case 'Cancel'
+              saveFile = false;
+
+            case 'Change Name'
+              [file, directory, ~] = uiputfile(filters, 'Save Data File...', excelFile);
+              excelFile = fullfile(directory, file);
+
+            case 'Overwrite'
+              overwrite = true;
+          end
         end
-      end
-      
-    case 'No'
-      saveFile = false;
-  end
-  
-  if saveFile
-    if handles.settings.current.Analysis.skipErrorAnalysis == 1
-      data = [propertyNames; values];
-    else
-      errors = cell(1, length(properties));
-      i = 1;
-      for p = 1:length(properties)
-        if mask(p)
-          errors{p} = cellOfErrors{i};
-          i = i + 1;
-        end
-      end
-      data = [propertyNames; values; errors];
+
+      case 'No'
+        saveFile = false;
     end
-    sheet = 'Data';
-    xlswrite(excelFile, data, sheet);
+
+    if saveFile
+      if handles.settings.current.Analysis.skipErrorAnalysis == 1
+        data = [propertyNames; values];
+      else
+        errors = cell(1, length(properties));
+        i = 1;
+        for p = 1:length(properties)
+          if mask(p)
+            errors{p} = cellOfErrors{i};
+            i = i + 1;
+          end
+        end
+        data = [propertyNames; values; errors];
+      end
+      sheet = 'Data';
+      xlswrite(excelFile, data, sheet);
+    end
   end
   
   % Enable all controls
   set(elements, 'Enable', 'On')
+  if results.fminsearchOutput.exitflag == 1
+    handles.results = results;
+    guidata(hObject.Parent, handles);
+  else
+    set(handles.ShowResultsButton, 'Enable', 'Off');
+  end
 end
 
 
@@ -656,5 +638,43 @@ function handles = RefreshPopups(handles)
       index = 1;
     end
     set(handles.MagnificationPopup, 'Value', index);
+  end
+end
+
+function message = MakeResultsMessage(handles, results)
+  % Summarize the fitting results
+  fittedValues = results.allProperties;
+  mask = results.fittedPropertiesMask;
+  finalChiSquared = results.chiSquared;
+  standardError = results.standardError();
+  properties = FitProperties.GetArrayOfProperties();
+  numberOfProperties = length(properties);
+  propertyNames = cell(1, numberOfProperties);
+  values = Num2Engr(fittedValues);
+  for p = 1:length(properties)
+    propertyNames{p} = FitProperties.GetName(properties(p));
+  end
+  maskMark = '*';
+  message = cell(1, numberOfProperties);
+  message{1} = sprintf('Fitting results:   (%sconstant value, not fitted)', maskMark);
+  message{3} = sprintf('Goodness-of-Fit:   %s', Num2Engr(finalChiSquared));
+  cellOfErrors = Num2Engr(standardError);
+  if handles.settings.current.Analysis.skipErrorAnalysis == 1
+    standardErrorString = 'Error analysis not performed';
+  else
+    standardErrorString = '';
+    for i = 1:length(cellOfErrors);
+      standardErrorString = [standardErrorString, ' ', cellOfErrors{i}]; %#ok<AGROW>
+    end
+    standardErrorString = strtrim(standardErrorString);
+  end
+  message{4} = sprintf('Standard Error:   ±%s', standardErrorString);
+  for p = 1:length(properties)
+    if mask(p)
+      maskIndicator = '';
+    else
+      maskIndicator = maskMark;
+    end
+    message{p + 4} = sprintf('%s%s:   %s', maskIndicator, propertyNames{p}, values{p});
   end
 end
