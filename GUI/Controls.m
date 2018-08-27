@@ -569,6 +569,7 @@ function [stagePosition, x, y, z] = DetermineStagePositionAndPositionCoordinates
     stagePosition = 'SampleLoading';
     handles.interfaceController.ConfigureForPositionSampleLoad();
     LocateStageAtSampleLoading(handles, GetOrigin(stagePosition, handles));
+    ReadCurrentPositionAndUpdateControls(handles);
   end
 end
 
@@ -590,10 +591,19 @@ function [stageCoordinates, modified] = GetClosestInBoundStageCoordinates(handle
   origins = GetOrigin(stagePosition, handles);
   
   if handles.settings.cache.isHeatedStage
-    
-    % Use a cylindrical coordinate system and return a location on the
-    % cylinder surface if the points are outside the volume
-    
+    % Use a disc coordinate system and return a location on the cylinder
+    % surface if the points are outside the volume
+    x = stageCoordinates(1) - origins(1);
+    y = stageCoordinates(2) - origins(2);
+    r = sqrt(x*x + y*y);
+    R = handles.settings.current.CrashPrevention.heatedStageInnerRadius;
+    if r > R
+      scale = R / r;
+      stageCoordinates(1) = x * scale + origins(1);
+      stageCoordinates(2) = y * scale + origins(2);
+      modified(1) = true;
+      modified(2) = true;
+    end
   else % Regular stage
     xRange = handles.settings.current.PositionRanges.x + origins(1);
     if stageCoordinates(1) < xRange(1)
@@ -620,10 +630,16 @@ function verticalBounds = GetDynamicVerticalPositionBounds(handles, stagePositio
 % Gets the dynamic vertical bounds at the provided stage position
   stageBounds = GetDynamicVerticalStageBounds(handles, stagePosition);
   
+  if handles.settings.cache.isHeatedStage
+    additionalOffset = handles.settings.current.CrashPrevention.heatedStageBasketDepth;
+  else % Regular stage
+    additionalOffset = 0.0;
+  end
+  
   verticalBounds = stageBounds - handles.settings.cache.sampleTop;
   
-  if verticalBounds(2) > handles.settings.current.CrashPrevention.wiggleRoom
-    verticalBounds(2) = handles.settings.current.CrashPrevention.wiggleRoom;
+  if verticalBounds(2) > handles.settings.current.CrashPrevention.wiggleRoom + additionalOffset
+    verticalBounds(2) = handles.settings.current.CrashPrevention.wiggleRoom + additionalOffset;
   end
 end
 
@@ -633,23 +649,25 @@ function verticalBounds = GetDynamicVerticalStageBounds(handles, stagePosition)
   verticalBounds = handles.settings.current.SoftStageBoundaries.z;
   
   if handles.settings.cache.isHeatedStage
-    
+    additionalOffset = handles.settings.current.CrashPrevention.heatedStageBasketDepth;
   else % Regular stage
-    sampleTop = handles.settings.cache.sampleTop;
-    slot2WideOffset = handles.settings.current.CrashPrevention.slotOffsetToWide;
-    wide2ScanOffset = handles.settings.current.CrashPrevention.wideOffsetToScan;
-    wiggleRoom = handles.settings.current.CrashPrevention.wiggleRoom;
-    
-    switch stagePosition
-      case 'SampleLoading';
-        % Nothing changes
+    additionalOffset = 0.0;
+  end
+  
+  sampleTop = handles.settings.cache.sampleTop + additionalOffset;
+  slot2WideOffset = handles.settings.current.CrashPrevention.slotOffsetToWide;
+  wide2ScanOffset = handles.settings.current.CrashPrevention.wideOffsetToScan;
+  wiggleRoom = handles.settings.current.CrashPrevention.wiggleRoom;
 
-      case 'WideImage';
-        verticalBounds(2) = (sampleTop - slot2WideOffset) + wiggleRoom;
+  switch stagePosition
+    case 'SampleLoading';
+      % Nothing changes
 
-      case 'ScanningObjective';
-        verticalBounds(2) = (sampleTop - (slot2WideOffset + wide2ScanOffset)) + wiggleRoom;
-    end
+    case 'WideImage';
+      verticalBounds(2) = (sampleTop - slot2WideOffset) + wiggleRoom;
+
+    case 'ScanningObjective';
+      verticalBounds(2) = (sampleTop - (slot2WideOffset + wide2ScanOffset)) + wiggleRoom;
   end
   
   % Check to see if we have move beyond the stage limits
@@ -754,10 +772,15 @@ function inBounds = IsInStageBounds(handles, stagePosition, stageCoordinates)
   origins = GetOrigin(stagePosition, handles);
   
   if handles.settings.cache.isHeatedStage
-    
-    % Use a cylindrical coordinate system and see if the points are within
-    %the volume
-    
+    % Use a disc coordinate system and see if the points are within
+    % the volume
+    x = stageCoordinates(1) - origins(1);
+    y = stageCoordinates(2) - origins(2);
+    r = sqrt(x*x + y*y);
+    if r > handles.settings.current.CrashPrevention.heatedStageInnerRadius;
+      inBounds = false;
+      return;
+    end
   else % Regular stage
     xRange = handles.settings.current.PositionRanges.x + origins(1);
     if stageCoordinates(1) < xRange(1) || stageCoordinates(1) > xRange(2)
@@ -989,6 +1012,7 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
   softVerticalLimits = handles.settings.current.SoftStageBoundaries.z;
   handles.stageController.SetLimits(handles.settings.current.StageController.zAxisID, softVerticalLimits); 
   handles.settings.cache.isHeatedStage = false;
+  additionalOffset = 0.0;
   
   % Set the crash prevention parameters
   scanWidth = handles.settings.current.CrashPrevention.scanWidth;
@@ -1003,13 +1027,17 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
   profileHandle = CrashPrevention('Settings', handles.settings, 'Preferences', handles.preferences);
   
   % Move the stage to the start position, then SLOOOOW down for the scan
-  handles.stageController.MoveAxis([horizontalStage, verticalStage], [startX, startY], true);
+  handles.stageController.MoveAxis(verticalStage, handles.settings.current.SafeTraverseHeight.z, true);
+  handles.stageController.MoveAxis(horizontalStage, startX, true);
+  handles.stageController.MoveAxis(verticalStage, startY, true);
   handles.stageController.UseSuperSlowSpeed([horizontalStage, verticalStage]);
   
   % Start the stan
   done = false;
   returnToSampleLoadingPosition = false;
   inflectionPoints = 0;
+  handles.settings.cache.regularStageVerification = 0;
+  handles.settings.cache.heatedStageVerification = 0;
   isBlocked = PerformCrashPrevention_IsLocationBlocked(handles);
   oldIsBlocked = ~isBlocked;
   handles.stageController.MoveAxis(horizontalStage, endX);
@@ -1037,16 +1065,21 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
           % We are moving horizontally and have found an edge
           handles.stageController.StopMotion(horizontalStage);
           inflectionPoints = inflectionPoints + 1;
+          fprintf('Horizontal inflection point at: (%f, %f)\n', x, y);
 
-          % Check to see if this is the stage edge
+          % Check to see if this is a stage edge
           if inflectionPoints == 1
-            if abs(x - handles.settings.current.CrashPrevention.regularStageEdgeH) < handles.settings.current.CrashPrevention.tolerance && ...
-               abs(y - handles.settings.current.CrashPrevention.regularStageEdgeV) < handles.settings.current.CrashPrevention.tolerance
-              fprintf('Regular stage detected!\n');
-            else
+            if abs(x - handles.settings.current.CrashPrevention.regularStageEdgeH) < handles.settings.current.CrashPrevention.tolerance
+              handles.settings.cache.regularStageVerification = 1;
+              fprintf('Regular stage detected! (1/2)\n');
+            elseif abs(x - handles.settings.current.CrashPrevention.heatedStageEdgeH) < handles.settings.current.CrashPrevention.tolerance
               % Handle other cases here as they may arise
-              handles.settings.cache.isHeatedStage = true;
-              fprintf('Heated stage detected at (%f, %f)\n', x, y);
+              handles.settings.cache.heatedStageVerification = 1;
+              fprintf('Heated stage detected! (1/2)\n');
+            else
+              message = 'Unknown stage type detected. Please verify that the stage is seated properly.\nNow exiting the crash prevention scan and returning to the Sample Loading Position.';
+              uiwait(errordlg(message, 'Stage Configuration Error', 'modal'));
+              returnToSampleLoadingPosition = true;
             end
           end
 
@@ -1060,7 +1093,25 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
           stageHeightAtHighestTracePoint = y;
           handles.stageController.StopMotion(verticalStage);
           inflectionPoints = inflectionPoints + 1;
+          fprintf('Vertical inflection point at: (%f, %f)\n', x, y);
+          
+          % Check to see if this is a stage edge
+          if inflectionPoints == 2
+            if abs(y - handles.settings.current.CrashPrevention.regularStageEdgeV) < handles.settings.current.CrashPrevention.tolerance
+              handles.settings.cache.regularStageVerification = 2;
+              fprintf('Regular stage detected! (2/2)\n');
+            elseif abs(y - handles.settings.current.CrashPrevention.heatedStageEdgeV) < handles.settings.current.CrashPrevention.tolerance
+              % Handle other cases here as they may arise
+              handles.settings.cache.heatedStageVerification = 2;
+              fprintf('Heated stage detected! (2/2)\n');
+            else
+              message = 'Unknown stage type detected. Please verify that the stage is seated properly.\nNow exiting the crash prevention scan and returning to the Sample Loading Position.';
+              uiwait(errordlg(message, 'Stage Configuration Error', 'modal'));
+              returnToSampleLoadingPosition = true;
+            end
+          end
 
+          % Start moving in the horizontal direction
           handles.stageController.MoveAxis(horizontalStage, endX);
           direction = horizontalStage;
         else
@@ -1079,20 +1130,59 @@ function returnToSampleLoadingPosition = PerformCrashPrevention(handles)
   % Close the scan window
   CrashPrevention('Close', profileHandle);
   
-  % Update the soft limits on the stage controller
-  if handles.settings.cache.isHeatedStage
-    % Allow the heated stage to move up so that the microscope objective is
-    % inside of it a certain distance
-    softVerticalLimits(2) = softVerticalLimits(2) - handles.settings.current.CrashPrevention.heatedStageThickness;
-  else
-    minPossible = min([handles.settings.current.CrashPrevention.slotOffsetToWide, ...
-                       handles.settings.current.CrashPrevention.slotOffsetToWide + handles.settings.current.CrashPrevention.wideOffsetToScan]);
-    softVerticalLimits(2) = stageHeightAtHighestTracePoint ... The lowest value that the stage had to be at to clear the beam
-                             - (minPossible ... The vertical distance between the slot detector beam and the highest working distance
-                                - handles.settings.current.CrashPrevention.wiggleRoom); % Some space to breath
-    if softVerticalLimits(2) > handles.settings.current.SoftStageBoundaries.z(2)
-      softVerticalLimits(2) = handles.settings.current.SoftStageBoundaries.z(2);
+  % Verify the crash prevention findings
+  if handles.settings.cache.regularStageVerification > 0 && handles.settings.cache.heatedStageVerification > 0
+    % Somehow both stage types were triggered. This is an ambiguous
+    % situation, so return to the sample loading position.
+    message = 'Unknown stage type detected. Please verify that the stage is seated properly.\nNow exiting the crash prevention scan and returning to the Sample Loading Position.';
+    uiwait(errordlg(message, 'Stage Configuration Error', 'modal'));
+    returnToSampleLoadingPosition = true;
+  elseif handles.settings.cache.regularStageVerification == 2
+    % Just in case
+    handles.settings.cache.isHeatedStage = false;
+    % No further vertical offsets required
+    additionalOffset = 0.0;
+  elseif handles.settings.cache.heatedStageVerification == 2
+    if abs(stageHeightAtHighestTracePoint - handles.settings.current.CrashPrevention.heatedStageTop) > handles.settings.current.CrashPrevention.tolerance
+      message = sprintf('There appears to be a problem with the heated stage. The top was expected to be at %f mm, but was actually at %f mm.\nNow exiting the crash prevention scan and returning to the Sample Loading Position.', handles.settings.current.CrashPrevention.heatedStageTop, stageHeightAtHighestTracePoint);
+      uiwait(errordlg(message, 'Heated Stage Configuration Error', 'modal'));
+      returnToSampleLoadingPosition = true;
+    else
+      handles.settings.cache.isHeatedStage = true;
+      % Allow the heated stage to move up so that the microscope objective
+      % can be inside of the sample basket a small distance
+      additionalOffset = handles.settings.current.CrashPrevention.heatedStageBasketDepth;
+      
+      % Ensure the current coordinates are valid for the heated stage
+      stagePosition = handles.CameraPosition;
+      positionCoordinates = [handles.preferences.current.CurrentCoordinates.x,...
+                             handles.preferences.current.CurrentCoordinates.y,...
+                             handles.preferences.current.CurrentCoordinates.z];
+      stageCoordinates = ConvertPositions2StageCoordinates(handles, stagePosition, positionCoordinates);
+      if ~IsInStageBounds(handles, stagePosition, stageCoordinates)
+        handles.preferences.current.CurrentCoordinates.x = 0.0;
+        handles.preferences.current.CurrentCoordinates.y = 0.0;
+%         [stageCoordinates, modified] = GetClosestInBoundStageCoordinates(handles, stagePosition, stageCoordinates);
+%         positionCoordinates = ConvertStages2PositionCoordinates(handles, stagePosition, stageCoordinates);
+%         if modified(1)
+%           handles.preferences.current.CurrentCoordinates.x = 0;
+%         end
+%         if modified(2)
+%           handles.preferences.current.CurrentCoordinates.y = 0);
+%         end
+      end
     end
+  end
+  
+  % Update the soft limits on the stage controller
+  minPossible = min([handles.settings.current.CrashPrevention.slotOffsetToWide, ...
+                     handles.settings.current.CrashPrevention.slotOffsetToWide + handles.settings.current.CrashPrevention.wideOffsetToScan]);
+  softVerticalLimits(2) = stageHeightAtHighestTracePoint ... The lowest value that the stage had to be at to clear the beam
+                           + additionalOffset ... Compensate for stage differences
+                           - (minPossible ... The vertical distance between the slot detector beam and the highest working distance
+                              - handles.settings.current.CrashPrevention.wiggleRoom); % Some space to breath
+  if softVerticalLimits(2) > handles.settings.current.SoftStageBoundaries.z(2)
+    softVerticalLimits(2) = handles.settings.current.SoftStageBoundaries.z(2);
   end
   handles.stageController.SetLimits(handles.settings.current.StageController.zAxisID, softVerticalLimits);
   
@@ -1303,23 +1393,29 @@ function handles = UpdateBounds(handles)
 % Update the bounds
   verticalBounds = GetDynamicVerticalPositionBounds(handles, handles.StagePosition);
   handles.positionRanges(3,:) = verticalBounds;
+  fuzz = 1e-4;
   
   if handles.settings.cache.isHeatedStage
     % Get the dynamic range of the heated stage based on the current
     % horizontal and vertical positions
-    x = positionCoordinates(1);
-    y = positionCoordinates(2);
+    x = handles.preferences.current.CurrentCoordinates.x;
+    y = handles.preferences.current.CurrentCoordinates.y;
     r = sqrt(x*x + y*y);
-    R = handles.settings.current.heatedStageInnerRadius;
+    R = handles.settings.current.CrashPrevention.heatedStageInnerRadius;
     
-    if r < 1e-3
-      % Use the full range if r close to the origin
-      xRange = R;
-      yRange = R;
-    else
-      % Scale the full range if r is away from the origin
-      xRange = R / r * abs(x);
-      yRange = R / r * abs(y);
+    xRange = R;
+    yRange = R;
+    if r > fuzz % If r is away from the origin...
+      if R - abs(x) < fuzz % We are on the x axis near the edge of the disc
+        yRange = 0.0;
+      else % Somewhere in the middle of the disc, adjust the y range
+        yRange = sqrt(R*R - x*x);
+      end
+      if R - abs(y) < fuzz % We are on the y axis near the edge of the disc
+        xRange = 0.0;
+      else % Somewhere in the middle of the disc, adjust the x range
+        xRange = sqrt(R*R - y*y);
+      end
     end
     
     handles.positionRanges(1,:) = [-xRange, xRange];
